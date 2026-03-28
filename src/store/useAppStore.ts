@@ -32,8 +32,8 @@ export const EMPTY_PROFILE: UserProfile = {
   nickname: "",
   birthDate: "",
   birthCalendar: "solar",
-  birthTime: "12:00",
-  birthTimeUnknown: false,
+  birthTime: "",
+  birthTimeUnknown: true,
   gender: "other"
 };
 

@@ -20,12 +20,7 @@ import { useAppStore } from "../store/useAppStore";
 import type { ConsultationResult, ConsultationSession, ShareRecord, TopicDefinition, TopicId, UserProfile } from "../types";
 
 function isProfileComplete(profile: UserProfile) {
-  return Boolean(
-    profile.nickname.trim() &&
-      profile.birthDate &&
-      profile.gender &&
-      (profile.birthTimeUnknown || profile.birthTime)
-  );
+  return Boolean(profile.birthDate && (profile.birthTimeUnknown || profile.birthTime));
 }
 
 function topicById(topicId: TopicId) {
@@ -74,10 +69,24 @@ function calendarLabel(value: UserProfile["birthCalendar"]) {
 }
 
 function formatProfileSummary(profile: UserProfile) {
-  const timeLabel = profile.birthTimeUnknown ? "출생시간 모름" : profile.birthTime || "시간 미입력";
-  return `${profile.nickname || "이름 미입력"} · ${profile.birthDate || "생일 미입력"} · ${calendarLabel(
-    profile.birthCalendar
-  )} · ${timeLabel} · ${genderLabel(profile.gender)}`;
+  const parts: string[] = [];
+
+  if (profile.nickname.trim()) {
+    parts.push(profile.nickname.trim());
+  }
+
+  if (profile.birthDate) {
+    parts.push(profile.birthDate + " " + calendarLabel(profile.birthCalendar));
+    parts.push(profile.birthTimeUnknown ? "출생시간 모름" : profile.birthTime || "출생시간 미입력");
+  }
+
+  if (profile.gender !== "other") {
+    parts.push(genderLabel(profile.gender));
+  }
+
+  return parts.length > 0
+    ? parts.join(" · ")
+    : "빠른 시작 모드입니다. 생년월일과 출생시간을 추가하면 결과가 더 세밀해집니다.";
 }
 
 function resultPath(resultId: string) {
@@ -235,7 +244,6 @@ export function App() {
 
 function LandingPage() {
   const profile = useAppStore((state) => state.profile);
-  const acceptedNotice = useAppStore((state) => state.acceptedNotice);
   const sessions = useAppStore((state) => state.sessions);
   const latestOpenSession = useMemo(
     () =>
@@ -244,21 +252,20 @@ function LandingPage() {
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
     [sessions]
   );
-  const nextPath = !acceptedNotice ? "/notice" : isProfileComplete(profile) ? "/topics" : "/profile";
-  const nextLabel = !acceptedNotice ? "유의사항 확인" : isProfileComplete(profile) ? "상담 시작" : "기본 정보 입력";
+  const hasDetailedProfile = isProfileComplete(profile);
 
   return (
     <ScreenFrame
-      eyebrow="모바일 우선 대화형 사주 상담"
-      title="지금 가장 궁금한 흐름부터 짧게 묻고 카드형 결과로 정리합니다."
-      subtitle="긴 사주풀이 대신, 현재 문제를 먼저 고르고 흐름에 맞는 질문만 따라가면 됩니다."
+      eyebrow="설정 없이 바로 시작하는 대화형 사주 상담"
+      title="바로 시작하고, 필요할 때만 프로필을 더해 깊게 읽습니다."
+      subtitle="처음 설정 없이 주제를 고르면 질문이 바로 시작됩니다. 원하면 생년월일과 출생시간을 넣어 리포트를 더 촘촘하게 만들 수 있습니다."
       footer={
         <div className="action-stack">
-          <Link className="button primary" to={nextPath}>
-            {nextLabel}
+          <Link className="button primary" to="/topics">
+            바로 상담 시작
           </Link>
-          <Link className="button ghost" to="/archive">
-            저장한 결과 보기
+          <Link className="button ghost" to="/profile">
+            {hasDetailedProfile ? "상담 프로필 수정" : "세부 정보 입력"}
           </Link>
         </div>
       }
@@ -266,9 +273,9 @@ function LandingPage() {
       <div className="hero-panel">
         <div>
           <p className="eyebrow">핵심 UX</p>
-          <h2>한 화면에는 하나의 핵심 행동만 남깁니다.</h2>
+          <h2>처음 설정은 줄이고, 질문과 리포트는 더 깊게 가져갑니다.</h2>
           <p>
-            사용자는 탭만 하며 흐름을 따라가고, 결과는 긴 문단 대신 10개의 카드 블록으로 정리됩니다.
+            기본 설정 없이 바로 시작할 수 있고, 각 상담은 상태 분기 뒤에 상담 초점과 막힘 요인까지 확인한 뒤 섹션형 리포트로 정리됩니다.
           </p>
         </div>
         <div className="hero-stats">
@@ -277,17 +284,23 @@ function LandingPage() {
             <span>상담 주제</span>
           </div>
           <div>
-            <strong>분기형</strong>
-            <span>질문 흐름</span>
+            <strong>5단계+</strong>
+            <span>심화 질문</span>
           </div>
           <div>
-            <strong>로컬 복원</strong>
-            <span>중간 이탈 대응</span>
+            <strong>10개 섹션</strong>
+            <span>리포트 구조</span>
           </div>
         </div>
       </div>
 
       <Banner {...DEFAULT_BANNER} />
+
+      <div className="panel soft">
+        <p className="overline">시작 방식</p>
+        <h3>{hasDetailedProfile ? "상담 프로필이 저장돼 있습니다." : "프로필 없이 바로 상담할 수 있습니다."}</h3>
+        <p>{formatProfileSummary(profile)}</p>
+      </div>
 
       {latestOpenSession ? (
         <div className="panel highlight">
@@ -306,19 +319,19 @@ function LandingPage() {
         <div className="panel info-grid">
           <div>
             <p className="overline">질문 방식</p>
-            <strong>상태에 따라 다른 질문</strong>
-            <p>같은 연애 주제라도 썸, 연애 중, 애매한 관계, 상대 없음에 따라 흐름이 달라집니다.</p>
+            <strong>상태 + 상담 초점 + 막힘 요인</strong>
+            <p>같은 고민이어도 현재 위치를 고른 뒤, 이번에 가장 알고 싶은 포인트와 복잡하게 만드는 요인까지 더 묻습니다.</p>
           </div>
           <div>
             <p className="overline">결과 방식</p>
-            <strong>10개 카드 블록</strong>
-            <p>핵심 요약, 지금의 흐름, 가까운 시기, 해야 할 행동까지 차분한 톤으로 제공합니다.</p>
+            <strong>10개 섹션 리포트</strong>
+            <p>핵심 진단, 흐름 해석, 문제 구조, 가까운 시기, 행동 가이드를 섹션별로 나눠 더 자세히 제공합니다.</p>
           </div>
         </div>
         <div className="mini-links">
           <Link to="/topics">주제 둘러보기</Link>
-          <Link to="/ops">운영 구조 보기</Link>
-          <Link to="/settings">데이터 관리</Link>
+          <Link to="/profile">세부 정보 입력</Link>
+          <Link to="/archive">저장한 결과 보기</Link>
         </div>
       </div>
     </ScreenFrame>
@@ -327,13 +340,12 @@ function LandingPage() {
 
 function NoticePage() {
   const navigate = useNavigate();
-  const profile = useAppStore((state) => state.profile);
   const setAcceptedNotice = useAppStore((state) => state.setAcceptedNotice);
 
   return (
     <ScreenFrame
       eyebrow="서비스 유의사항"
-      title="참고용 해석이라는 점을 먼저 안내합니다."
+      title="참고용 해석 기준을 짧게 확인해 주세요."
       subtitle="이 서비스는 흐름과 경향을 정리하는 상담형 도구입니다. 중요한 현실 판단은 실제 정보와 함께 보셔야 합니다."
       footer={
         <div className="action-stack">
@@ -341,10 +353,10 @@ function NoticePage() {
             className="button primary"
             onClick={() => {
               setAcceptedNotice(true);
-              navigate(isProfileComplete(profile) ? "/topics" : "/profile");
+              navigate("/topics");
             }}
           >
-            안내를 확인했어요
+            확인하고 바로 시작
           </button>
           <Link className="button ghost" to="/">
             처음으로
@@ -378,51 +390,42 @@ function ProfilePage() {
   const savedProfile = useAppStore((state) => state.profile);
   const updateProfile = useAppStore((state) => state.updateProfile);
   const [form, setForm] = useState<UserProfile>(savedProfile);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setForm(savedProfile);
   }, [savedProfile]);
 
   const submit = () => {
-    if (!form.nickname.trim()) {
-      setError("닉네임을 입력해 주세요.");
-      return;
-    }
+    const normalized: UserProfile = {
+      ...form,
+      nickname: form.nickname.trim(),
+      birthTime: form.birthDate && !form.birthTimeUnknown ? form.birthTime : "",
+      birthTimeUnknown: !form.birthDate || form.birthTimeUnknown || !form.birthTime
+    };
 
-    if (!form.birthDate) {
-      setError("생년월일을 입력해 주세요.");
-      return;
-    }
-
-    if (!form.birthTimeUnknown && !form.birthTime) {
-      setError("출생시간을 입력하거나 모름으로 설정해 주세요.");
-      return;
-    }
-
-    updateProfile(form);
+    updateProfile(normalized);
     navigate("/topics");
   };
 
   return (
     <ScreenFrame
-      eyebrow="기본 정보 입력"
-      title="상담 흐름에 필요한 기본 정보를 먼저 입력합니다."
-      subtitle="입력한 정보는 로컬 세션 복원과 결과 정확도 안내에 사용됩니다."
+      eyebrow="선택 프로필 입력"
+      title="프로필은 선택 입력입니다. 원하면 더 자세한 리포트를 위해 보강하세요."
+      subtitle="주제 선택은 바로 가능하고, 여기서는 결과의 시기감과 문장 디테일을 높이는 정보만 선택적으로 저장합니다."
       footer={
         <div className="action-stack">
           <button className="button primary" onClick={submit}>
             저장하고 주제 선택
           </button>
-          <Link className="button ghost" to="/notice">
-            유의사항 다시 보기
+          <Link className="button ghost" to="/topics">
+            입력 없이 바로 시작
           </Link>
         </div>
       }
     >
       <div className="stack">
         <label className="field">
-          <span>닉네임</span>
+          <span>닉네임 (선택)</span>
           <input
             value={form.nickname}
             onChange={(event) => setForm((current) => ({ ...current, nickname: event.target.value }))}
@@ -430,11 +433,18 @@ function ProfilePage() {
           />
         </label>
         <label className="field">
-          <span>생년월일</span>
+          <span>생년월일 (선택)</span>
           <input
             type="date"
             value={form.birthDate}
-            onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                birthDate: event.target.value,
+                birthTimeUnknown: event.target.value ? current.birthTimeUnknown : true,
+                birthTime: event.target.value ? current.birthTime : ""
+              }))
+            }
           />
         </label>
         <div className="field">
@@ -446,7 +456,7 @@ function ProfilePage() {
             ].map((item) => (
               <button
                 key={item.value}
-                className={`chip ${form.birthCalendar === item.value ? "active" : ""}`}
+                className={"chip" + (form.birthCalendar === item.value ? " active" : "")}
                 onClick={() => setForm((current) => ({ ...current, birthCalendar: item.value as UserProfile["birthCalendar"] }))}
               >
                 {item.label}
@@ -455,11 +465,11 @@ function ProfilePage() {
           </div>
         </div>
         <label className="field">
-          <span>출생시간</span>
+          <span>출생시간 (선택)</span>
           <input
             type="time"
             value={form.birthTime}
-            disabled={form.birthTimeUnknown}
+            disabled={form.birthTimeUnknown || !form.birthDate}
             onChange={(event) => setForm((current) => ({ ...current, birthTime: event.target.value }))}
           />
         </label>
@@ -475,10 +485,10 @@ function ProfilePage() {
               }))
             }
           />
-          <span>출생시간을 모르겠어요</span>
+          <span>출생시간은 나중에 입력할게요</span>
         </label>
         <div className="field">
-          <span>성별</span>
+          <span>성별 (선택)</span>
           <div className="chip-row">
             {[
               { label: "여성", value: "female" },
@@ -487,7 +497,7 @@ function ProfilePage() {
             ].map((item) => (
               <button
                 key={item.value}
-                className={`chip ${form.gender === item.value ? "active" : ""}`}
+                className={"chip" + (form.gender === item.value ? " active" : "")}
                 onClick={() => setForm((current) => ({ ...current, gender: item.value as UserProfile["gender"] }))}
               >
                 {item.label}
@@ -496,12 +506,9 @@ function ProfilePage() {
           </div>
         </div>
         <div className="panel soft">
-          <p className="overline">정확도 안내</p>
-          <p>
-            출생시간을 모르면 세부 시기 판단보다 큰 흐름 중심으로 해석됩니다. 그래도 상담 진행과 저장은 정상적으로 가능합니다.
-          </p>
+          <p className="overline">입력 가이드</p>
+          <p>바로 시작할 거라면 비워둬도 됩니다. 생년월일과 출생시간을 넣으면 결과 문장과 시기 해석이 더 촘촘해집니다.</p>
         </div>
-        {error ? <div className="inline-error">{error}</div> : null}
       </div>
     </ScreenFrame>
   );
@@ -509,18 +516,10 @@ function ProfilePage() {
 
 function TopicHomePage() {
   const navigate = useNavigate();
-  const acceptedNotice = useAppStore((state) => state.acceptedNotice);
   const profile = useAppStore((state) => state.profile);
   const sessions = useAppStore((state) => state.sessions);
   const startSession = useAppStore((state) => state.startSession);
-
-  if (!acceptedNotice) {
-    return <Navigate to="/notice" replace />;
-  }
-
-  if (!isProfileComplete(profile)) {
-    return <Navigate to="/profile" replace />;
-  }
+  const hasDetailedProfile = isProfileComplete(profile);
 
   const draftSessions = [...sessions]
     .filter((session) => ["draft", "review", "loading"].includes(session.status) && session.compatibility !== "outdated")
@@ -535,23 +534,26 @@ function TopicHomePage() {
   return (
     <ScreenFrame
       eyebrow="주제 선택 홈"
-      title="지금 가장 먼저 보고 싶은 문제를 골라 주세요."
-      subtitle="탭 한 번으로 시작되고, 선택한 상태에 따라 다음 질문이 달라집니다."
+      title="주제를 고르면 바로 심화 질문이 시작됩니다."
+      subtitle="기본 상태를 고른 뒤 상담 초점, 막힘 요인, 듣고 싶은 리포트 톤까지 확인하고 결과를 섹션별로 정리합니다."
       footer={
         <div className="action-stack">
           <Link className="button primary" to="/archive">
             이전 결과 다시 보기
           </Link>
           <Link className="button ghost" to="/profile">
-            기본 정보 수정
+            {hasDetailedProfile ? "기본 정보 수정" : "세부 정보 보강"}
           </Link>
         </div>
       }
     >
       <div className="panel soft">
-        <p className="overline">현재 프로필</p>
-        <h3>{profile.nickname || "이름 미입력"}</h3>
+        <p className="overline">{hasDetailedProfile ? "상담 프로필" : "빠른 시작 모드"}</p>
+        <h3>{profile.nickname || (hasDetailedProfile ? "프로필 저장됨" : "프로필 없이 바로 상담 가능")}</h3>
         <p>{formatProfileSummary(profile)}</p>
+        {!hasDetailedProfile ? (
+          <small>생년월일과 출생시간을 추가하면 시기감과 리포트 문장이 더 구체적으로 바뀝니다.</small>
+        ) : null}
       </div>
 
       {draftSessions.length > 0 ? (
@@ -594,6 +596,7 @@ function TopicHomePage() {
     </ScreenFrame>
   );
 }
+
 function SessionPage() {
   const navigate = useNavigate();
   const { sessionId } = useParams();

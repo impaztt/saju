@@ -1,16 +1,16 @@
 import type { ResultCardKey, TopicId } from "../types";
 
 export const RESULT_CARD_TITLES: Record<ResultCardKey, string> = {
-  summary: "핵심 한 줄 요약",
-  currentFlow: "지금의 흐름",
-  self: "내 입장",
-  other: "상대 입장",
-  structure: "관계/상황 구조",
-  nearTerm: "가까운 시기 흐름",
-  do: "지금 하면 좋은 행동",
-  dont: "지금 피해야 할 행동",
-  oneLine: "오늘의 한마디",
-  followUp: "이어서 보면 좋은 질문"
+  summary: "1. 핵심 진단",
+  currentFlow: "2. 현재 흐름 해석",
+  self: "3. 내 상태와 반응",
+  other: "4. 상대/환경 해석",
+  structure: "5. 문제 구조 정리",
+  nearTerm: "6. 가까운 시기 전망",
+  do: "7. 지금 해야 할 행동",
+  dont: "8. 피해야 할 패턴",
+  oneLine: "9. 핵심 문장",
+  followUp: "10. 이어서 볼 포인트"
 };
 
 export interface TopicBaseTemplate {

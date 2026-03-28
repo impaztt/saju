@@ -1,6 +1,6 @@
 import type { QuestionNode, QuestionOption, TopicFlow, TopicId } from "../types";
 
-const FLOW_VERSION = "2026.03.r1";
+const FLOW_VERSION = "2026.03.r2";
 
 function option(
   id: string,
@@ -32,7 +32,86 @@ function node(
   };
 }
 
-export const TOPIC_FLOWS: TopicFlow[] = [
+function isTerminalNode(questionNode: QuestionNode) {
+  return !questionNode.branchRules?.length && questionNode.options.every((optionItem) => optionItem.next === null);
+}
+
+function followupNodeId(topicId: TopicId, suffix: "focus" | "blocker" | "tone") {
+  return topicId + ".deep-" + suffix;
+}
+
+function buildFollowupNodes(topicId: TopicId) {
+  const focusId = followupNodeId(topicId, "focus");
+  const blockerId = followupNodeId(topicId, "blocker");
+  const toneId = followupNodeId(topicId, "tone");
+
+  return [
+    node(
+      topicId,
+      focusId,
+      "이번 상담에서 가장 깊게 보고 싶은 포인트는 무엇인가요?",
+      "처음 고민보다 이번 결과에서 꼭 얻고 싶은 답을 고르면 리포트 초점이 선명해집니다.",
+      [
+        option("intent", "상대/상황의 진짜 의도", "겉반응보다 속뜻과 기준 차이를 알고 싶어요", blockerId, ["consult.focus.intent"]),
+        option("timing", "가까운 시기와 흐름", "언제 움직이고 언제 기다려야 하는지 보고 싶어요", blockerId, ["consult.focus.timing"]),
+        option("action", "내가 먼저 할 행동", "막힌 흐름을 바꾸는 실질적인 행동이 궁금해요", blockerId, ["consult.focus.action"]),
+        option("standard", "정리하거나 유지할 기준", "붙잡을지 놓을지 판단 기준이 필요해요", blockerId, ["consult.focus.standard"])
+      ],
+      ["consult.depth.focus"]
+    ),
+    node(
+      topicId,
+      blockerId,
+      "지금 이 문제를 가장 복잡하게 만드는 요인은 무엇인가요?",
+      "같은 고민이라도 막히는 이유가 다르면 리포트의 방향도 달라집니다.",
+      [
+        option("emotion", "내 감정이 흔들려서", "생각보다 마음이 먼저 흔들립니다", toneId, ["consult.blocker.emotion"]),
+        option("external", "상대나 현실 변수가 커서", "내 마음과 별개로 외부 조건이 큽니다", toneId, ["consult.blocker.external"]),
+        option("pattern", "같은 패턴이 반복돼서", "비슷한 장면이 자꾸 되풀이됩니다", toneId, ["consult.blocker.pattern"]),
+        option("timing", "결정 시기를 놓칠까 불안해서", "지금 판단해야 할 것 같은 압박이 큽니다", toneId, ["consult.blocker.timing"])
+      ],
+      ["consult.depth.blocker"]
+    ),
+    node(
+      topicId,
+      toneId,
+      "리포트는 어떤 방식으로 듣고 싶나요?",
+      "같은 해석도 듣고 싶은 톤에 따라 정리 방식이 달라집니다.",
+      [
+        option("direct", "직설적이고 선명하게", "좋고 싫음을 분명하게 듣고 싶어요", null, ["consult.tone.direct"]),
+        option("supportive", "마음 정리 중심으로", "부담을 덜고 감정을 정리하고 싶어요", null, ["consult.tone.supportive"]),
+        option("practical", "현실 조언 중심으로", "실행 순서와 행동 기준이 중요해요", null, ["consult.tone.practical"])
+      ],
+      ["consult.depth.tone"]
+    )
+  ];
+}
+
+function deepenFlow(flow: TopicFlow): TopicFlow {
+  const focusId = followupNodeId(flow.topicId, "focus");
+
+  return {
+    ...flow,
+    version: FLOW_VERSION,
+    nodes: [
+      ...flow.nodes.map((questionNode) =>
+        isTerminalNode(questionNode)
+          ? {
+              ...questionNode,
+              version: FLOW_VERSION,
+              options: questionNode.options.map((optionItem) => ({ ...optionItem, next: focusId }))
+            }
+          : {
+              ...questionNode,
+              version: FLOW_VERSION
+            }
+      ),
+      ...buildFollowupNodes(flow.topicId)
+    ]
+  };
+}
+
+const BASE_TOPIC_FLOWS: TopicFlow[] = [
   {
     topicId: "romance",
     version: FLOW_VERSION,
@@ -364,6 +443,8 @@ export const TOPIC_FLOWS: TopicFlow[] = [
     ]
   }
 ];
+
+export const TOPIC_FLOWS: TopicFlow[] = BASE_TOPIC_FLOWS.map((flow) => deepenFlow(flow));
 
 export const FLOW_MAP = TOPIC_FLOWS.reduce<Record<TopicId, TopicFlow>>((acc, flow) => {
   acc[flow.topicId] = flow;

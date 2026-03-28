@@ -8,7 +8,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "썸, 연애 중, 애매한 관계까지 흐름 중심으로 정리",
     featuredPrompt: "지금 관계가 어디쯤 와 있는지 보고 싶어요.",
     accent: "#1b66f8",
-    estimatedMinutes: 3
+    estimatedMinutes: 5
   },
   {
     id: "reunion",
@@ -17,7 +17,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "연락 상태와 감정 잔존을 함께 살피는 재회 상담",
     featuredPrompt: "다시 이어질 가능성보다, 지금 무엇을 봐야 하는지 알고 싶어요.",
     accent: "#3565ff",
-    estimatedMinutes: 4
+    estimatedMinutes: 6
   },
   {
     id: "marriage",
@@ -26,7 +26,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "상대가 있든 없든 결혼 고민의 위치를 정리",
     featuredPrompt: "결혼 생각은 있는데 지금 판단의 기준이 흔들려요.",
     accent: "#127c7a",
-    estimatedMinutes: 4
+    estimatedMinutes: 6
   },
   {
     id: "chemistry",
@@ -35,7 +35,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "연락 빈도, 반응 속도, 거리감을 가볍게 점검",
     featuredPrompt: "상대가 마음이 있는지, 속도 차이만 있는지 궁금해요.",
     accent: "#0e8f6f",
-    estimatedMinutes: 3
+    estimatedMinutes: 5
   },
   {
     id: "relationships",
@@ -44,7 +44,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "친구, 동료, 윗사람 관계의 긴장을 해석",
     featuredPrompt: "말을 많이 하지 않아도 관계 흐름을 파악하고 싶어요.",
     accent: "#6074ff",
-    estimatedMinutes: 3
+    estimatedMinutes: 5
   },
   {
     id: "family",
@@ -53,7 +53,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "부모 기대, 형제 거리감, 역할 부담을 점검",
     featuredPrompt: "가족 안에서 왜 유독 마음이 무거운지 알고 싶어요.",
     accent: "#11698a",
-    estimatedMinutes: 3
+    estimatedMinutes: 5
   },
   {
     id: "career",
@@ -62,7 +62,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "이직 고민, 갈등, 번아웃, 성장 정체를 해석",
     featuredPrompt: "버티는 게 맞는지, 움직일 때인지 판단이 필요해요.",
     accent: "#0f766e",
-    estimatedMinutes: 4
+    estimatedMinutes: 6
   },
   {
     id: "money",
@@ -71,7 +71,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "소비 흐름, 압박 요인, 우선순위 정리",
     featuredPrompt: "돈 문제를 숫자보다 흐름으로 보고 싶어요.",
     accent: "#2364aa",
-    estimatedMinutes: 3
+    estimatedMinutes: 5
   },
   {
     id: "yearly",
@@ -80,7 +80,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "일, 관계, 회복, 재출발 중 어디에 힘이 실리는지",
     featuredPrompt: "올해를 어떻게 보내야 덜 흔들릴지 알고 싶어요.",
     accent: "#2f6fed",
-    estimatedMinutes: 3
+    estimatedMinutes: 5
   },
   {
     id: "mind",
@@ -89,7 +89,7 @@ export const TOPICS: TopicDefinition[] = [
     shortBlurb: "불안, 무기력, 미련, 답답함을 흐름으로 읽기",
     featuredPrompt: "지금 내 마음이 어디에서 막히는지 보고 싶어요.",
     accent: "#3b82f6",
-    estimatedMinutes: 3
+    estimatedMinutes: 5
   }
 ];
 
