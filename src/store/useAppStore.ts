@@ -1,0 +1,423 @@
+import { create } from "zustand";
+
+import { FLOW_MAP } from "../data/questionFlows";
+import {
+  buildConsultationResult,
+  buildFallbackResult,
+  getNode,
+  getSessionCompatibility,
+  resolveNextNodeId,
+  reconcileSession
+} from "../lib/engine";
+import { isFirebaseConfigured } from "../lib/firebase";
+import { createShareRecord, isShareExpired } from "../lib/share";
+import {
+  clearPersistedState,
+  loadPersistedState,
+  savePersistedState,
+  type PersistedAppState
+} from "../lib/storage";
+import type {
+  ConsultationResult,
+  ConsultationSession,
+  NetworkStatus,
+  ShareRecord,
+  TopicId,
+  UserProfile
+} from "../types";
+
+const LOCAL_USER_ID = "local-prototype-user";
+
+export const EMPTY_PROFILE: UserProfile = {
+  nickname: "",
+  birthDate: "",
+  birthCalendar: "solar",
+  birthTime: "12:00",
+  birthTimeUnknown: false,
+  gender: "other"
+};
+
+function now() {
+  return new Date().toISOString();
+}
+
+function createSession(profile: UserProfile, topicId: TopicId): ConsultationSession {
+  const flow = FLOW_MAP[topicId];
+  const timestamp = now();
+
+  return {
+    id: `session-${crypto.randomUUID()}`,
+    userId: LOCAL_USER_ID,
+    profileSnapshot: profile,
+    topicId,
+    flowVersion: flow.version,
+    status: "draft",
+    currentNodeId: flow.startNodeId,
+    responses: [],
+    compatibility: "ok",
+    startedAt: timestamp,
+    updatedAt: timestamp,
+    saved: false
+  };
+}
+
+interface AppState {
+  acceptedNotice: boolean;
+  profile: UserProfile;
+  networkStatus: NetworkStatus;
+  activeSessionId: string | null;
+  sessions: ConsultationSession[];
+  results: ConsultationResult[];
+  shares: ShareRecord[];
+  dismissedBannerIds: string[];
+  lastError?: string;
+  setAcceptedNotice: (value: boolean) => void;
+  updateProfile: (profile: UserProfile) => void;
+  setNetworkStatus: (status: NetworkStatus) => void;
+  clearError: () => void;
+  dismissBanner: (id: string) => void;
+  startSession: (topicId: TopicId, forceRestart?: boolean) => ConsultationSession;
+  resumeSession: (sessionId: string) => void;
+  submitAnswer: (sessionId: string, nodeId: string, optionId: string) => ConsultationSession | null;
+  goBack: (sessionId: string) => ConsultationSession | null;
+  rewindToNode: (sessionId: string, nodeId: string) => ConsultationSession | null;
+  markLoading: (sessionId: string) => void;
+  generateResult: (sessionId: string) => ConsultationResult | null;
+  saveSession: (sessionId: string) => void;
+  createShare: (sessionId: string) => ShareRecord | null;
+  disableShare: (token: string) => void;
+  deleteAllData: () => void;
+}
+
+function toPersistedState(state: AppState): PersistedAppState {
+  return {
+    acceptedNotice: state.acceptedNotice,
+    profile: state.profile,
+    sessions: state.sessions,
+    results: state.results,
+    shares: state.shares,
+    dismissedBannerIds: state.dismissedBannerIds
+  };
+}
+
+const persisted = loadPersistedState();
+const initialSessions: ConsultationSession[] = (persisted.sessions ?? []).map((session) => reconcileSession(session));
+const initialResults: ConsultationResult[] = persisted.results ?? [];
+const initialShares: ShareRecord[] = (persisted.shares ?? []).map((share) => {
+  if (isShareExpired(share)) {
+    return {
+      ...share,
+      status: share.status === "disabled" ? "disabled" : "expired"
+    };
+  }
+
+  return share;
+});
+
+export const useAppStore = create<AppState>((set, get) => {
+  const persist = () => {
+    savePersistedState(toPersistedState(get()));
+  };
+
+  return {
+    acceptedNotice: persisted.acceptedNotice ?? false,
+    profile: persisted.profile ?? EMPTY_PROFILE,
+    networkStatus:
+      typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "online",
+    activeSessionId: initialSessions[0]?.id ?? null,
+    sessions: initialSessions,
+    results: initialResults,
+    shares: initialShares,
+    dismissedBannerIds: persisted.dismissedBannerIds ?? [],
+    lastError: undefined,
+    setAcceptedNotice: (value) => {
+      set({ acceptedNotice: value });
+      persist();
+    },
+    updateProfile: (profile) => {
+      set({ profile, lastError: undefined });
+      persist();
+    },
+    setNetworkStatus: (status) => {
+      set({ networkStatus: status });
+    },
+    clearError: () => {
+      set({ lastError: undefined });
+    },
+    dismissBanner: (id) => {
+      set((state) => ({
+        dismissedBannerIds: state.dismissedBannerIds.includes(id)
+          ? state.dismissedBannerIds
+          : [...state.dismissedBannerIds, id]
+      }));
+      persist();
+    },
+    startSession: (topicId, forceRestart = false) => {
+      const state = get();
+      const reusable = !forceRestart
+        ? [...state.sessions]
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+            .find(
+              (session) =>
+                session.topicId === topicId &&
+                ["draft", "review", "loading"].includes(session.status) &&
+                session.compatibility !== "outdated"
+            )
+        : undefined;
+
+      if (reusable) {
+        set({ activeSessionId: reusable.id, lastError: undefined });
+        return reusable;
+      }
+
+      const session = createSession(state.profile, topicId);
+      set((current) => ({
+        sessions: [session, ...current.sessions],
+        activeSessionId: session.id,
+        lastError: undefined
+      }));
+      persist();
+      return session;
+    },
+    resumeSession: (sessionId) => {
+      set({ activeSessionId: sessionId, lastError: undefined });
+    },
+    submitAnswer: (sessionId, nodeId, optionId) => {
+      const state = get();
+      const target = state.sessions.find((session) => session.id === sessionId);
+
+      if (!target) {
+        set({ lastError: "세션을 찾을 수 없습니다." });
+        return null;
+      }
+
+      const flow = FLOW_MAP[target.topicId];
+      const node = getNode(flow, nodeId);
+      const option = node?.options.find((candidate) => candidate.id === optionId);
+
+      if (!node || !option) {
+        set({ lastError: "질문 또는 선택지를 찾을 수 없습니다." });
+        return null;
+      }
+
+      const replaceIndex = target.responses.findIndex((response) => response.nodeId === nodeId);
+      const keptResponses = replaceIndex >= 0 ? target.responses.slice(0, replaceIndex) : target.responses;
+      const response = {
+        nodeId,
+        optionId,
+        label: option.label,
+        tags: [...(node.resultTags ?? []), ...option.tags],
+        answeredAt: now()
+      };
+      const provisional = {
+        ...target,
+        responses: [...keptResponses, response]
+      };
+      const nextNodeId = resolveNextNodeId(provisional, node, optionId);
+      const updated: ConsultationSession = {
+        ...provisional,
+        flowVersion: flow.version,
+        compatibility: "ok",
+        currentNodeId: nextNodeId,
+        status: nextNodeId ? "draft" : "review",
+        updatedAt: now()
+      };
+
+      set((current) => ({
+        sessions: current.sessions.map((session) => (session.id === sessionId ? updated : session)),
+        activeSessionId: sessionId,
+        lastError: undefined
+      }));
+      persist();
+      return updated;
+    },
+    goBack: (sessionId) => {
+      const state = get();
+      const target = state.sessions.find((session) => session.id === sessionId);
+
+      if (!target) {
+        set({ lastError: "세션을 찾을 수 없습니다." });
+        return null;
+      }
+
+      const flow = FLOW_MAP[target.topicId];
+
+      if (target.responses.length === 0) {
+        return target;
+      }
+
+      const previousNodeId =
+        target.responses.length === 1 ? flow.startNodeId : target.responses[target.responses.length - 1].nodeId;
+      const updated: ConsultationSession = {
+        ...target,
+        responses: target.responses.slice(0, -1),
+        currentNodeId: previousNodeId,
+        status: "draft",
+        updatedAt: now()
+      };
+
+      set((current) => ({
+        sessions: current.sessions.map((session) => (session.id === sessionId ? updated : session)),
+        lastError: undefined
+      }));
+      persist();
+      return updated;
+    },
+    rewindToNode: (sessionId, nodeId) => {
+      const state = get();
+      const target = state.sessions.find((session) => session.id === sessionId);
+
+      if (!target) {
+        set({ lastError: "세션을 찾을 수 없습니다." });
+        return null;
+      }
+
+      const responseIndex = target.responses.findIndex((response) => response.nodeId === nodeId);
+      const updated: ConsultationSession = {
+        ...target,
+        responses: responseIndex >= 0 ? target.responses.slice(0, responseIndex) : target.responses,
+        currentNodeId: nodeId,
+        status: "draft",
+        updatedAt: now()
+      };
+
+      set((current) => ({
+        sessions: current.sessions.map((session) => (session.id === sessionId ? updated : session)),
+        activeSessionId: sessionId,
+        lastError: undefined
+      }));
+      persist();
+      return updated;
+    },
+    markLoading: (sessionId) => {
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId
+            ? {
+                ...session,
+                status: "loading",
+                updatedAt: now()
+              }
+            : session
+        )
+      }));
+      persist();
+    },
+    generateResult: (sessionId) => {
+      const state = get();
+      const target = state.sessions.find((session) => session.id === sessionId);
+
+      if (!target) {
+        set({ lastError: "세션을 찾을 수 없습니다." });
+        return null;
+      }
+
+      let result: ConsultationResult;
+
+      try {
+        const compatibility = getSessionCompatibility(target);
+        const normalized = compatibility === "ok" ? target : { ...target, compatibility };
+        const generationSource =
+          isFirebaseConfigured && state.networkStatus === "online" ? "cloud" : "local";
+        result = buildConsultationResult(normalized, generationSource);
+      } catch {
+        result = buildFallbackResult(target);
+      }
+
+      const updatedSession: ConsultationSession = {
+        ...target,
+        status: "result",
+        currentNodeId: null,
+        compatibility: getSessionCompatibility(target),
+        resultId: result.id,
+        completedAt: result.generatedAt,
+        updatedAt: result.generatedAt
+      };
+
+      set((current) => ({
+        results: [result, ...current.results.filter((entry) => entry.id !== result.id)],
+        sessions: current.sessions.map((session) => (session.id === sessionId ? updatedSession : session)),
+        activeSessionId: sessionId,
+        lastError: undefined
+      }));
+      persist();
+      return result;
+    },
+    saveSession: (sessionId) => {
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId
+            ? {
+                ...session,
+                saved: true,
+                updatedAt: now()
+              }
+            : session
+        )
+      }));
+      persist();
+    },
+    createShare: (sessionId) => {
+      const state = get();
+      const session = state.sessions.find((candidate) => candidate.id === sessionId);
+
+      if (!session?.resultId) {
+        set({ lastError: "공유할 결과를 먼저 생성해 주세요." });
+        return null;
+      }
+
+      const existing = state.shares.find(
+        (share) => share.resultId === session.resultId && !isShareExpired(share)
+      );
+
+      if (existing) {
+        return existing;
+      }
+
+      const share = createShareRecord(session.userId, session.id, session.resultId);
+      set((current) => ({
+        shares: [share, ...current.shares],
+        sessions: current.sessions.map((entry) =>
+          entry.id === sessionId
+            ? {
+                ...entry,
+                shareToken: share.token,
+                updatedAt: now()
+              }
+            : entry
+        ),
+        lastError: undefined
+      }));
+      persist();
+      return share;
+    },
+    disableShare: (token) => {
+      set((state) => ({
+        shares: state.shares.map((share) =>
+          share.token === token
+            ? {
+                ...share,
+                status: "disabled"
+              }
+            : share
+        )
+      }));
+      persist();
+    },
+    deleteAllData: () => {
+      clearPersistedState();
+      set({
+        acceptedNotice: false,
+        profile: EMPTY_PROFILE,
+        networkStatus:
+          typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "online",
+        activeSessionId: null,
+        sessions: [],
+        results: [],
+        shares: [],
+        dismissedBannerIds: [],
+        lastError: undefined
+      });
+    }
+  };
+});
