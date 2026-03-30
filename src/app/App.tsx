@@ -261,38 +261,44 @@ function LandingPage() {
       <section className="landing-simple">
         <div className="landing-service-row">
           <span className="landing-service-badge">온결 사주</span>
-          <Link className="landing-inline-link" to="/notice">
-            참고 안내
-          </Link>
+          {latestOpenSession && latestTopic ? (
+            <Link className="landing-inline-link" to={sessionPath(latestOpenSession)}>
+              이어보기 · {latestTopic.label}
+            </Link>
+          ) : (
+            <Link className="landing-inline-link" to="/notice">
+              참고 안내
+            </Link>
+          )}
         </div>
 
         <div className="landing-simple-card">
-          <div className="landing-simple-visual" aria-hidden="true">
-            <span className="landing-simple-mark" />
-            <span className="landing-simple-line" />
-            <span className="landing-simple-line short" />
-          </div>
-
           <div className="landing-simple-copy">
-            <h1>지금 사주가 알려주는 흐름</h1>
-            <p>연애, 재회, 직장, 올해 흐름처럼 지금 궁금한 방향을 질문 몇 개로 짧게 정리해 드립니다.</p>
+            <p className="landing-simple-kicker">지금 보는 사주</p>
+            <h1>연애, 재회, 직장, 올해 흐름</h1>
+            <p>지금 궁금한 방향을 짧고 쉽게 봅니다.</p>
           </div>
 
-          <div className="landing-simple-tags" aria-label="상담 주제">
-            <span>연애</span>
-            <span>직장</span>
-            <span>올해 흐름</span>
+          <div className="landing-simple-stage" aria-hidden="true">
+            <div className="landing-simple-tile">
+              <span>연애</span>
+            </div>
+            <div className="landing-simple-tile">
+              <span>재회</span>
+            </div>
+            <div className="landing-simple-tile">
+              <span>직장</span>
+            </div>
+            <div className="landing-simple-tile">
+              <span>올해 흐름</span>
+            </div>
           </div>
 
           <div className="landing-simple-actions">
             <Link className="button primary landing-primary-button" to="/topics">
               시작하기
             </Link>
-            {latestOpenSession && latestTopic ? (
-              <Link className="landing-secondary-link" to={sessionPath(latestOpenSession)}>
-                이어서 보기 · {latestTopic.label}
-              </Link>
-            ) : null}
+            <small>주제를 고르면 바로 시작됩니다.</small>
           </div>
         </div>
       </section>
@@ -478,15 +484,15 @@ function ProfilePage() {
 
 function TopicHomePage() {
   const navigate = useNavigate();
-  const profile = useAppStore((state) => state.profile);
   const sessions = useAppStore((state) => state.sessions);
   const startSession = useAppStore((state) => state.startSession);
-  const hasDetailedProfile = isProfileComplete(profile);
-
-  const draftSessions = [...sessions]
-    .filter((session) => ["draft", "review", "loading"].includes(session.status) && session.compatibility !== "outdated")
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 2);
+  const latestOpenSession = useMemo(
+    () =>
+      [...sessions]
+        .filter((session) => ["draft", "review", "loading"].includes(session.status) && session.compatibility !== "outdated")
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
+    [sessions]
+  );
 
   const launchTopic = (topicId: TopicId, forceRestart = false) => {
     const session = startSession(topicId, forceRestart);
@@ -494,67 +500,41 @@ function TopicHomePage() {
   };
 
   return (
-    <ScreenFrame
-      eyebrow="주제 선택 홈"
-      title="주제를 고르면 바로 심화 질문이 시작됩니다."
-      subtitle="기본 상태를 고른 뒤 상담 초점, 막힘 요인, 듣고 싶은 리포트 톤까지 확인하고 결과를 섹션별로 정리합니다."
-      footer={
-        <div className="action-stack">
-          <Link className="button primary" to="/archive">
-            이전 결과 다시 보기
-          </Link>
-          <Link className="button ghost" to="/profile">
-            {hasDetailedProfile ? "기본 정보 수정" : "세부 정보 보강"}
-          </Link>
+    <ScreenFrame className="topic-home-screen" hideNav hideHeader eyebrow="주제 선택" title="무엇을 볼까요?">
+      <section className="topic-home-shell">
+        <div className="topic-home-head">
+          <div className="topic-home-title">
+            <p className="overline">주제 선택</p>
+            <h1>무엇을 볼까요?</h1>
+          </div>
+          {latestOpenSession ? (
+            <Link className="topic-home-link" to={sessionPath(latestOpenSession)}>
+              이어보기
+            </Link>
+          ) : (
+            <Link className="topic-home-link" to="/archive">
+              보관함
+            </Link>
+          )}
         </div>
-      }
-    >
-      <div className="panel soft">
-        <p className="overline">{hasDetailedProfile ? "상담 프로필" : "빠른 시작 모드"}</p>
-        <h3>{profile.nickname || (hasDetailedProfile ? "프로필 저장됨" : "프로필 없이 바로 상담 가능")}</h3>
-        <p>{formatProfileSummary(profile)}</p>
-        {!hasDetailedProfile ? (
-          <small>생년월일과 출생시간을 추가하면 시기감과 리포트 문장이 더 구체적으로 바뀝니다.</small>
-        ) : null}
-      </div>
 
-      {draftSessions.length > 0 ? (
-        <div className="stack">
-          {draftSessions.map((session) => (
-            <div key={session.id} className="panel highlight">
-              <p className="overline">이어 보기</p>
-              <h3>{topicById(session.topicId).label}</h3>
-              <p>{session.status === "review" ? "답변 검토 단계" : session.status === "loading" ? "결과 생성 중" : "질문 진행 중"}</p>
-              <div className="inline-actions">
-                <Link className="button secondary small" to={sessionPath(session)}>
-                  이어서 보기
-                </Link>
-                <button className="button ghost small" onClick={() => launchTopic(session.topicId, true)}>
-                  새로 시작
-                </button>
-              </div>
-            </div>
+        <div className="topic-home-grid">
+          {TOPICS.map((topic) => (
+            <button
+              key={topic.id}
+              className="topic-home-card"
+              style={{
+                borderColor: topic.accent + "22",
+                background: "linear-gradient(180deg, " + topic.accent + "12 0%, rgba(255, 255, 255, 0.98) 100%)"
+              }}
+              onClick={() => launchTopic(topic.id)}
+            >
+              <span className="topic-home-card-dot" style={{ backgroundColor: topic.accent }} />
+              <strong>{topic.label}</strong>
+            </button>
           ))}
         </div>
-      ) : null}
-
-      <div className="topic-grid">
-        {TOPICS.map((topic) => (
-          <button
-            key={topic.id}
-            className="topic-card"
-            style={{ borderColor: topic.accent }}
-            onClick={() => launchTopic(topic.id)}
-          >
-            <div className="topic-meta">
-              <span>{topic.label}</span>
-              <strong>{topic.estimatedMinutes}분</strong>
-            </div>
-            <p>{topic.shortBlurb}</p>
-            <small>{topic.featuredPrompt}</small>
-          </button>
-        ))}
-      </div>
+      </section>
     </ScreenFrame>
   );
 }
