@@ -152,7 +152,7 @@ function ScreenFrame({
     <main className={["screen", className].filter(Boolean).join(" ")}>
       <div className="topbar">
         <Link className="brand" to="/">
-          온결 사주
+          오늘 사주
         </Link>
         {hideNav ? null : (
           <div className="topbar-links">
@@ -258,6 +258,61 @@ export function App() {
   );
 }
 
+type LandingTopicVisualKind = "romance" | "reunion" | "career" | "yearly";
+
+function LandingTopicVisual({ kind }: { kind: LandingTopicVisualKind }) {
+  switch (kind) {
+    case "romance":
+      return (
+        <span className="landing-visual landing-visual-romance" aria-hidden="true">
+          <svg className="landing-visual-icon" viewBox="0 0 64 64" fill="none">
+            <path d="M32 47L19.6 35.3a8.4 8.4 0 0 1 11.9-11.9l.5.5.5-.5a8.4 8.4 0 0 1 11.9 11.9z" />
+            <path d="M47 16h5" />
+            <path d="M49.5 13.5v5" />
+          </svg>
+        </span>
+      );
+    case "reunion":
+      return (
+        <span className="landing-visual landing-visual-reunion" aria-hidden="true">
+          <svg className="landing-visual-icon" viewBox="0 0 64 64" fill="none">
+            <path d="M23 24a14 14 0 0 1 24-3" />
+            <path d="M47 21v9h-9" />
+            <path d="M41 40a14 14 0 0 1-24 3" />
+            <path d="M17 43v-9h9" />
+          </svg>
+        </span>
+      );
+    case "career":
+      return (
+        <span className="landing-visual landing-visual-career" aria-hidden="true">
+          <svg className="landing-visual-icon" viewBox="0 0 64 64" fill="none">
+            <rect x="15" y="24" width="34" height="22" rx="7" />
+            <path d="M25 24v-3a7 7 0 0 1 7-7 7 7 0 0 1 7 7v3" />
+            <path d="M22 36h20" />
+            <path d="m24 40 5-5 4 4 8-8" />
+          </svg>
+        </span>
+      );
+    case "yearly":
+      return (
+        <span className="landing-visual landing-visual-yearly" aria-hidden="true">
+          <svg className="landing-visual-icon" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="15" />
+            <path d="M32 12v6" />
+            <path d="M32 46v6" />
+            <path d="M12 32h6" />
+            <path d="M46 32h6" />
+            <path d="m18 18 4 4" />
+            <path d="m42 42 4 4" />
+            <path d="m46 18-4 4" />
+            <path d="m22 42-4 4" />
+          </svg>
+        </span>
+      );
+  }
+}
+
 function LandingPage() {
   const sessions = useAppStore((state) => state.sessions);
   const latestOpenSession = useMemo(
@@ -268,19 +323,25 @@ function LandingPage() {
     [sessions]
   );
   const latestTopic = latestOpenSession ? topicById(latestOpenSession.topicId) : null;
+  const landingTopics: Array<{ kind: LandingTopicVisualKind; label: string }> = [
+    { kind: "romance", label: "연애" },
+    { kind: "reunion", label: "재회" },
+    { kind: "career", label: "직장" },
+    { kind: "yearly", label: "올해 흐름" }
+  ];
 
   return (
     <ScreenFrame
       className="landing-screen"
       hideNav
       hideHeader
-      eyebrow="온결 사주"
+      eyebrow="오늘 사주"
       title="지금 흐름을 봅니다."
       subtitle="궁금한 방향을 짧고 쉽게 정리합니다."
     >
       <section className="landing-shell">
         <div className="landing-service-row">
-          <span className="landing-service-badge">온결 사주</span>
+          <span className="landing-service-badge">오늘 사주</span>
           {latestOpenSession && latestTopic ? (
             <Link className="landing-inline-link" to={sessionPath(latestOpenSession)}>
               이어서 보기
@@ -294,28 +355,18 @@ function LandingPage() {
 
         <div className="landing-card">
           <div className="landing-card-copy">
-            <p className="landing-kicker">지금 보는 흐름</p>
-            <h1>연애, 재회, 직장, 올해 흐름</h1>
-            <p>궁금한 주제를 누르면 바로 시작합니다.</p>
+            <p className="landing-kicker">오늘 바로 보기</p>
+            <h1>연애·재회·직장·올해 흐름</h1>
+            <p>보고 싶은 흐름을 바로 고르세요.</p>
           </div>
 
-          <div className="landing-dot-grid" aria-hidden="true">
-            <div className="landing-dot-tile">
-              <span className="landing-dot" />
-              <strong>연애</strong>
-            </div>
-            <div className="landing-dot-tile">
-              <span className="landing-dot" />
-              <strong>재회</strong>
-            </div>
-            <div className="landing-dot-tile">
-              <span className="landing-dot" />
-              <strong>직장</strong>
-            </div>
-            <div className="landing-dot-tile">
-              <span className="landing-dot" />
-              <strong>올해 흐름</strong>
-            </div>
+          <div className="landing-dot-grid">
+            {landingTopics.map((topic) => (
+              <div key={topic.kind} className={"landing-dot-tile landing-dot-tile-" + topic.kind}>
+                <LandingTopicVisual kind={topic.kind} />
+                <strong>{topic.label}</strong>
+              </div>
+            ))}
           </div>
 
           <div className="landing-card-actions">
