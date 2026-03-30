@@ -176,11 +176,14 @@ function ScreenFrame({
 
 function ResultCards({ result }: { result: ConsultationResult }) {
   return (
-    <div className="stack">
+    <div className="stack result-stack">
       {result.cards.map((card) => (
-        <article key={card.key} className="panel result-card">
-          <p className="overline">{card.title}</p>
-          <p className="card-body whitespace">{card.body}</p>
+        <article key={card.key} className="panel result-card premium-card">
+          <header className="result-card-header">
+            <span className="result-card-dot" />
+            <p className="overline">{card.title}</p>
+          </header>
+          <div className="card-body whitespace">{card.body}</div>
         </article>
       ))}
     </div>
@@ -261,56 +264,11 @@ export function App() {
 type LandingTopicVisualKind = "romance" | "reunion" | "career" | "yearly";
 
 function LandingTopicVisual({ kind }: { kind: LandingTopicVisualKind }) {
-  switch (kind) {
-    case "romance":
-      return (
-        <span className="landing-visual landing-visual-romance" aria-hidden="true">
-          <svg className="landing-visual-icon" viewBox="0 0 64 64" fill="none">
-            <path d="M32 47L19.6 35.3a8.4 8.4 0 0 1 11.9-11.9l.5.5.5-.5a8.4 8.4 0 0 1 11.9 11.9z" />
-            <path d="M47 16h5" />
-            <path d="M49.5 13.5v5" />
-          </svg>
-        </span>
-      );
-    case "reunion":
-      return (
-        <span className="landing-visual landing-visual-reunion" aria-hidden="true">
-          <svg className="landing-visual-icon" viewBox="0 0 64 64" fill="none">
-            <path d="M23 24a14 14 0 0 1 24-3" />
-            <path d="M47 21v9h-9" />
-            <path d="M41 40a14 14 0 0 1-24 3" />
-            <path d="M17 43v-9h9" />
-          </svg>
-        </span>
-      );
-    case "career":
-      return (
-        <span className="landing-visual landing-visual-career" aria-hidden="true">
-          <svg className="landing-visual-icon" viewBox="0 0 64 64" fill="none">
-            <rect x="15" y="24" width="34" height="22" rx="7" />
-            <path d="M25 24v-3a7 7 0 0 1 7-7 7 7 0 0 1 7 7v3" />
-            <path d="M22 36h20" />
-            <path d="m24 40 5-5 4 4 8-8" />
-          </svg>
-        </span>
-      );
-    case "yearly":
-      return (
-        <span className="landing-visual landing-visual-yearly" aria-hidden="true">
-          <svg className="landing-visual-icon" viewBox="0 0 64 64" fill="none">
-            <circle cx="32" cy="32" r="15" />
-            <path d="M32 12v6" />
-            <path d="M32 46v6" />
-            <path d="M12 32h6" />
-            <path d="M46 32h6" />
-            <path d="m18 18 4 4" />
-            <path d="m42 42 4 4" />
-            <path d="m46 18-4 4" />
-            <path d="m22 42-4 4" />
-          </svg>
-        </span>
-      );
-  }
+  return (
+    <span className={"landing-visual landing-visual-" + kind} aria-hidden="true">
+      <span className="landing-visual-dot" />
+    </span>
+  );
 }
 
 function LandingPage() {
@@ -335,52 +293,38 @@ function LandingPage() {
       className="landing-screen"
       hideNav
       hideHeader
-      eyebrow="오늘 사주"
-      title="지금 흐름을 봅니다."
-      subtitle="궁금한 방향을 짧고 쉽게 정리합니다."
+      title="프리미엄 상담"
     >
       <section className="landing-shell">
-        <div className="landing-service-row">
-          <span className="landing-service-badge">오늘 사주</span>
-          {latestOpenSession && latestTopic ? (
-            <Link className="landing-inline-link" to={sessionPath(latestOpenSession)}>
-              이어서 보기
+        <header className="landing-header">
+          <p className="landing-eyebrow">PREMIUM SAJU REPORT</p>
+          <h1>인생의 결정적 흐름을 봅니다.</h1>
+          <p className="landing-desc">지금 당신에게 가장 필요한 답을 찾아드립니다.</p>
+        </header>
+
+        <div className="landing-topic-grid">
+          {landingTopics.map((topic) => (
+            <Link key={topic.kind} to="/topics" className={"landing-topic-tile landing-topic-tile-" + topic.kind}>
+              <LandingTopicVisual kind={topic.kind} />
+              <div className="landing-topic-info">
+                <strong>{topic.label}</strong>
+                <small>상세 리포트 보기</small>
+              </div>
             </Link>
-          ) : (
-            <Link className="landing-inline-link" to="/notice">
-              참고 안내
-            </Link>
-          )}
+          ))}
         </div>
 
-        <div className="landing-card">
-          <div className="landing-card-copy">
-            <p className="landing-kicker">오늘 바로 보기</p>
-            <h1>연애·재회·직장·올해 흐름</h1>
-            <p>보고 싶은 흐름을 바로 고르세요.</p>
-          </div>
-
-          <div className="landing-dot-grid">
-            {landingTopics.map((topic) => (
-              <div key={topic.kind} className={"landing-dot-tile landing-dot-tile-" + topic.kind}>
-                <LandingTopicVisual kind={topic.kind} />
-                <strong>{topic.label}</strong>
-              </div>
-            ))}
-          </div>
-
-          <div className="landing-card-actions">
-            <Link className="button primary landing-primary-button" to="/topics">
-              시작하기
+        <div className="landing-actions">
+          <Link className="button primary landing-main-btn" to="/topics">
+            상담 시작하기
+          </Link>
+          {latestOpenSession && latestTopic ? (
+            <Link className="landing-resume-link" to={sessionPath(latestOpenSession)}>
+              {latestTopic.label} 이어서 보기
             </Link>
-            {latestOpenSession && latestTopic ? (
-              <Link className="landing-secondary-link" to={sessionPath(latestOpenSession)}>
-                {latestTopic.label} 이어서 보기
-              </Link>
-            ) : (
-              <small>주제만 고르면 됩니다.</small>
-            )}
-          </div>
+          ) : (
+            <Link className="landing-resume-link" to="/notice">서비스 이용 안내</Link>
+          )}
         </div>
       </section>
     </ScreenFrame>
@@ -435,132 +379,215 @@ function NoticePage() {
 }
 
 function ProfilePage() {
+
   const navigate = useNavigate();
+
   const savedProfile = useAppStore((state) => state.profile);
+
   const updateProfile = useAppStore((state) => state.updateProfile);
+
   const [form, setForm] = useState<UserProfile>(savedProfile);
 
+
+
   useEffect(() => {
+
     setForm(savedProfile);
+
   }, [savedProfile]);
 
+
+
   const submit = () => {
+
     const normalized: UserProfile = {
+
       ...form,
+
       nickname: form.nickname.trim(),
+
       birthTime: form.birthDate && !form.birthTimeUnknown ? form.birthTime : "",
+
       birthTimeUnknown: !form.birthDate || form.birthTimeUnknown || !form.birthTime
+
     };
 
+
+
     updateProfile(normalized);
+
     navigate("/topics");
+
   };
 
+
+
   return (
+
     <ScreenFrame
-      eyebrow="선택 프로필 입력"
-      title="프로필은 선택 입력입니다. 원하면 더 자세한 리포트를 위해 보강하세요."
-      subtitle="주제 선택은 바로 가능하고, 여기서는 결과의 시기감과 문장 디테일을 높이는 정보만 선택적으로 저장합니다."
+
+      title="프로필 설정"
+
+      subtitle="결과 카드의 디테일을 높이는 선택 정보입니다."
+
       footer={
+
         <div className="action-stack">
+
           <button className="button primary" onClick={submit}>
+
             저장하고 주제 선택
+
           </button>
+
           <Link className="button ghost" to="/topics">
+
             입력 없이 바로 시작
+
           </Link>
+
         </div>
+
       }
+
     >
-      <div className="stack">
+
+      <div className="stack compact-stack">
+
         <label className="field">
-          <span>닉네임 (선택)</span>
+
+          <span>닉네임</span>
+
           <input
+
+            placeholder="상담에 사용할 이름"
+
             value={form.nickname}
+
             onChange={(event) => setForm((current) => ({ ...current, nickname: event.target.value }))}
-            placeholder="예: 온결"
+
           />
+
         </label>
-        <label className="field">
-          <span>생년월일 (선택)</span>
-          <input
-            type="date"
-            value={form.birthDate}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                birthDate: event.target.value,
-                birthTimeUnknown: event.target.value ? current.birthTimeUnknown : true,
-                birthTime: event.target.value ? current.birthTime : ""
-              }))
-            }
-          />
-        </label>
-        <div className="field">
-          <span>양력 / 음력</span>
-          <div className="chip-row">
-            {[
-              { label: "양력", value: "solar" },
-              { label: "음력", value: "lunar" }
-            ].map((item) => (
-              <button
-                key={item.value}
-                className={"chip" + (form.birthCalendar === item.value ? " active" : "")}
-                onClick={() => setForm((current) => ({ ...current, birthCalendar: item.value as UserProfile["birthCalendar"] }))}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+
+        <div className="info-grid profile-grid">
+
+          <label className="field">
+
+            <span>생년월일 (선택)</span>
+
+            <input
+
+              type="date"
+
+              value={form.birthDate}
+
+              onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
+
+            />
+
+          </label>
+
+          <label className="field">
+
+            <span>출생시간 (선택)</span>
+
+            <input
+
+              type="time"
+
+              value={form.birthTime}
+
+              disabled={form.birthTimeUnknown || !form.birthDate}
+
+              onChange={(event) => setForm((current) => ({ ...current, birthTime: event.target.value }))}
+
+            />
+
+          </label>
+
         </div>
-        <label className="field">
-          <span>출생시간 (선택)</span>
+
+        <label className="checkbox-row mini-checkbox">
+
           <input
-            type="time"
-            value={form.birthTime}
-            disabled={form.birthTimeUnknown || !form.birthDate}
-            onChange={(event) => setForm((current) => ({ ...current, birthTime: event.target.value }))}
-          />
-        </label>
-        <label className="checkbox-row">
-          <input
+
             type="checkbox"
+
             checked={form.birthTimeUnknown}
+
             onChange={(event) =>
+
               setForm((current) => ({
+
                 ...current,
+
                 birthTimeUnknown: event.target.checked,
+
                 birthTime: event.target.checked ? "" : current.birthTime || "12:00"
+
               }))
+
             }
+
           />
-          <span>출생시간은 나중에 입력할게요</span>
+
+          <span>출생시간은 모름</span>
+
         </label>
+
         <div className="field">
-          <span>성별 (선택)</span>
+
+          <span>성별</span>
+
           <div className="chip-row">
-            {[
-              { label: "여성", value: "female" },
-              { label: "남성", value: "male" },
-              { label: "기타", value: "other" }
-            ].map((item) => (
+
+            {[{
+
+              label: "여성",
+
+              value: "female"
+
+            }, {
+
+              label: "남성",
+
+              value: "male"
+
+            }, {
+
+              label: "기타",
+
+              value: "other"
+
+            }].map((item) => (
+
               <button
+
                 key={item.value}
+
                 className={"chip" + (form.gender === item.value ? " active" : "")}
+
                 onClick={() => setForm((current) => ({ ...current, gender: item.value as UserProfile["gender"] }))}
+
               >
+
                 {item.label}
+
               </button>
+
             ))}
+
           </div>
+
         </div>
-        <div className="panel soft">
-          <p className="overline">입력 가이드</p>
-          <p>바로 시작할 거라면 비워둬도 됩니다. 생년월일과 출생시간을 넣으면 결과 문장과 시기 해석이 더 촘촘해집니다.</p>
-        </div>
+
       </div>
+
     </ScreenFrame>
+
   );
+
 }
 
 function TopicHomePage() {
@@ -581,33 +608,34 @@ function TopicHomePage() {
   };
 
   return (
-    <ScreenFrame className="topic-home-screen" hideNav hideHeader eyebrow="주제 선택" title="무엇을 볼까요?">
+    <ScreenFrame className="topic-home-screen" hideNav hideHeader title="주제 선택">
       <section className="topic-home-shell">
-        <div className="topic-home-head">
-          <h1>무엇을 볼까요?</h1>
-          {latestOpenSession ? (
-            <Link className="topic-home-link" to={sessionPath(latestOpenSession)}>
-              이어서 보기
-            </Link>
-          ) : null}
-        </div>
+        <header className="topic-home-head">
+          <p className="eyebrow">CHOOSE YOUR PATH</p>
+          <h1>심층 분석 주제</h1>
+        </header>
 
         <div className="topic-home-grid">
           {TOPICS.map((topic) => (
             <button
               key={topic.id}
               className="topic-home-card"
-              style={{
-                borderColor: topic.accent + "22",
-                background: "linear-gradient(180deg, rgba(255, 255, 255, 0.98), " + topic.accent + "10 100%)"
-              }}
               onClick={() => launchTopic(topic.id)}
             >
-              <span className="topic-home-card-dot" style={{ backgroundColor: topic.accent }} />
+              <span className="topic-home-card-dot" />
               <strong>{topic.label}</strong>
+              <span className="topic-home-link">시작 →</span>
             </button>
           ))}
         </div>
+
+        {latestOpenSession ? (
+          <div className="topic-home-actions">
+            <Link className="landing-resume-link" to={sessionPath(latestOpenSession)}>
+              진행 중인 상담 이어서 보기
+            </Link>
+          </div>
+        ) : null}
       </section>
     </ScreenFrame>
   );
