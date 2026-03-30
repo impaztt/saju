@@ -117,26 +117,6 @@ function absoluteShareUrl(path: string) {
   return new URL(path, window.location.origin).toString();
 }
 
-const LANDING_FEATURED_TOPIC_IDS: TopicId[] = ["romance", "chemistry", "career", "yearly"];
-
-const LANDING_TOPIC_COPY: Partial<Record<TopicId, { headline: string; caption: string }>> = {
-  romance: { headline: "우리 사이", caption: "연애" },
-  chemistry: { headline: "상대 마음", caption: "썸" },
-  career: { headline: "일의 흐름", caption: "직장" },
-  yearly: { headline: "올해 흐름", caption: "올해" }
-};
-
-function sessionStatusLabel(status: ConsultationSession["status"]) {
-  switch (status) {
-    case "review":
-      return "답변 확인 중";
-    case "loading":
-      return "결과 생성 중";
-    default:
-      return "질문 진행 중";
-  }
-}
-
 function ScreenFrame({
   eyebrow,
   title,
@@ -259,10 +239,7 @@ export function App() {
 }
 
 function LandingPage() {
-  const navigate = useNavigate();
-  const profile = useAppStore((state) => state.profile);
   const sessions = useAppStore((state) => state.sessions);
-  const startSession = useAppStore((state) => state.startSession);
   const latestOpenSession = useMemo(
     () =>
       [...sessions]
@@ -270,194 +247,53 @@ function LandingPage() {
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
     [sessions]
   );
-  const savedResultCount = useMemo(
-    () => sessions.filter((session) => session.saved && session.resultId).length,
-    [sessions]
-  );
-  const hasDetailedProfile = isProfileComplete(profile);
-  const featuredTopics = useMemo(() => LANDING_FEATURED_TOPIC_IDS.map((topicId) => topicById(topicId)), []);
-  const compactTopics = useMemo(
-    () => TOPICS.filter((topic) => !LANDING_FEATURED_TOPIC_IDS.includes(topic.id)),
-    []
-  );
-  const latestTopic = latestOpenSession ? topicById(latestOpenSession.topicId) : featuredTopics[0];
-  const latestTopicCopy = LANDING_TOPIC_COPY[latestTopic.id];
-
-  const launchTopic = (topicId: TopicId, forceRestart = false) => {
-    const session = startSession(topicId, forceRestart);
-    navigate(sessionPath(session));
-  };
+  const latestTopic = latestOpenSession ? topicById(latestOpenSession.topicId) : null;
 
   return (
     <ScreenFrame
       className="landing-screen"
       hideNav
       hideHeader
-      eyebrow="오늘의 상담"
-      title="무엇을 볼까요?"
-      subtitle="바로 고르세요."
+      eyebrow="온결 사주"
+      title="지금 흐름을 봅니다."
+      subtitle="궁금한 방향을 짧고 쉽게 정리합니다."
     >
-      <section className="landing-masthead">
-        <div className="landing-masthead-copy">
-          <div className="landing-service-row">
-            <span className="landing-service-badge">온결 사주</span>
-            <Link className="landing-inline-link" to="/notice">
-              참고 안내
+      <section className="landing-simple">
+        <div className="landing-service-row">
+          <span className="landing-service-badge">온결 사주</span>
+          <Link className="landing-inline-link" to="/notice">
+            참고 안내
+          </Link>
+        </div>
+
+        <div className="landing-simple-card">
+          <div className="landing-simple-visual" aria-hidden="true">
+            <span className="landing-simple-mark" />
+            <span className="landing-simple-line" />
+            <span className="landing-simple-line short" />
+          </div>
+
+          <div className="landing-simple-copy">
+            <h1>지금 사주가 알려주는 흐름</h1>
+            <p>연애, 재회, 직장, 올해 흐름처럼 지금 궁금한 방향을 질문 몇 개로 짧게 정리해 드립니다.</p>
+          </div>
+
+          <div className="landing-simple-tags" aria-label="상담 주제">
+            <span>연애</span>
+            <span>직장</span>
+            <span>올해 흐름</span>
+          </div>
+
+          <div className="landing-simple-actions">
+            <Link className="button primary landing-primary-button" to="/topics">
+              시작하기
             </Link>
+            {latestOpenSession && latestTopic ? (
+              <Link className="landing-secondary-link" to={sessionPath(latestOpenSession)}>
+                이어서 보기 · {latestTopic.label}
+              </Link>
+            ) : null}
           </div>
-
-          <div className="landing-masthead-headline">
-            <h1>뭘 볼까요?</h1>
-            <p>바로 고르기</p>
-          </div>
-
-          <div className="landing-stat-row">
-            <span className="landing-stat-pill">{TOPICS.length}개 주제</span>
-            <span className="landing-stat-pill">약 5분</span>
-            <span className="landing-stat-pill">입력 선택</span>
-          </div>
-        </div>
-
-        {latestOpenSession ? (
-          <Link className="landing-entry-card accent" to={sessionPath(latestOpenSession)}>
-            <span className="landing-entry-label">이어서 보기</span>
-            <strong>{latestTopicCopy?.headline ?? latestTopic.label}</strong>
-            <small>{latestTopic.label}</small>
-            <div className="landing-entry-meta">
-              <span>열기</span>
-              <span>{sessionStatusLabel(latestOpenSession.status)}</span>
-            </div>
-            <div className="landing-entry-visual" aria-hidden="true">
-              <span className="landing-entry-orb landing-entry-orb-a" />
-              <span className="landing-entry-orb landing-entry-orb-b" />
-              <span className="landing-entry-orb landing-entry-orb-c" />
-              <div className="landing-entry-bars">
-                {featuredTopics.map((topic) => (
-                  <span key={topic.id} style={{ backgroundColor: topic.accent }} />
-                ))}
-              </div>
-            </div>
-          </Link>
-        ) : (
-          <button className="landing-entry-card accent" onClick={() => launchTopic(latestTopic.id)}>
-            <span className="landing-entry-label">바로 시작</span>
-            <strong>{latestTopicCopy?.headline ?? latestTopic.label}</strong>
-            <small>{latestTopic.label}</small>
-            <div className="landing-entry-meta">
-              <span>5분</span>
-              <span>바로 시작</span>
-            </div>
-            <div className="landing-entry-visual" aria-hidden="true">
-              <span className="landing-entry-orb landing-entry-orb-a" />
-              <span className="landing-entry-orb landing-entry-orb-b" />
-              <span className="landing-entry-orb landing-entry-orb-c" />
-              <div className="landing-entry-bars">
-                {featuredTopics.map((topic) => (
-                  <span key={topic.id} style={{ backgroundColor: topic.accent }} />
-                ))}
-              </div>
-            </div>
-          </button>
-        )}
-      </section>
-
-      <section className="landing-section">
-        <div className="landing-section-head">
-          <div>
-            <p className="overline">많이 보는 주제</p>
-            <h2>많이 보는 질문</h2>
-          </div>
-          <Link className="landing-text-link" to="/topics">
-            전체 보기
-          </Link>
-        </div>
-
-        <div className="landing-feature-grid">
-          {featuredTopics.map((topic) => {
-            const copy = LANDING_TOPIC_COPY[topic.id] ?? {
-              headline: topic.label,
-              caption: topic.description
-            };
-
-            return (
-              <button
-                key={topic.id}
-                className="landing-feature-card"
-                style={{ borderColor: topic.accent + "24" }}
-                onClick={() => launchTopic(topic.id)}
-              >
-                <div
-                  className="landing-feature-art"
-                  style={{
-                    background: "linear-gradient(160deg, " + topic.accent + "26 0%, rgba(255, 255, 255, 0.96) 72%)"
-                  }}
-                >
-                  <span
-                    className="landing-feature-glow landing-feature-glow-a"
-                    style={{
-                      background:
-                        "radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.96) 0%, " + topic.accent + " 100%)"
-                    }}
-                  />
-                  <span className="landing-feature-glow landing-feature-glow-b" style={{ background: topic.accent + "16" }} />
-                  <span className="landing-feature-arc" style={{ borderColor: topic.accent + "40" }} />
-                  <span className="landing-feature-pill" style={{ background: topic.accent + "12", color: topic.accent }}>
-                    {topic.estimatedMinutes}분
-                  </span>
-
-                  <div className="landing-feature-copy">
-                    <p>{topic.label}</p>
-                    <strong>{copy.headline}</strong>
-                    <small>{copy.caption}</small>
-                  </div>
-                </div>
-
-                <div className="landing-feature-footer">
-                  <small>선택</small>
-                  <span>시작</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="landing-support-grid">
-        <Link className="landing-service-card" to="/archive">
-          <span>보관함</span>
-          <strong>{savedResultCount > 0 ? savedResultCount + "개 저장" : "지난 결과"}</strong>
-          <small>{savedResultCount > 0 ? "다시 보기" : "결과 보기"}</small>
-        </Link>
-
-        <Link className="landing-service-card" to="/profile">
-          <span>프로필</span>
-          <strong>{hasDetailedProfile ? profile.nickname.trim() || "입력 완료" : "선택 입력"}</strong>
-          <small>{hasDetailedProfile ? "설정됨" : "나중에 입력"}</small>
-        </Link>
-
-        <Link className="landing-service-card" to="/settings">
-          <span>설정</span>
-          <strong>서비스</strong>
-          <small>기본 설정</small>
-        </Link>
-      </section>
-
-      <section className="landing-section">
-        <div className="landing-section-head">
-          <div>
-            <p className="overline">다른 주제</p>
-            <h2>다른 질문</h2>
-          </div>
-        </div>
-
-        <div className="landing-mini-grid">
-          {compactTopics.map((topic) => (
-            <button key={topic.id} className="landing-mini-card" onClick={() => launchTopic(topic.id)}>
-              <span className="landing-mini-dot" style={{ backgroundColor: topic.accent }} />
-              <strong>{topic.label}</strong>
-              <small>{topic.estimatedMinutes}분</small>
-            </button>
-          ))}
         </div>
       </section>
     </ScreenFrame>
