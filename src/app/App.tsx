@@ -5,6 +5,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams
 } from "react-router-dom";
@@ -117,6 +118,15 @@ function absoluteShareUrl(path: string) {
   return new URL(path, window.location.origin).toString();
 }
 
+function isReloadNavigation() {
+  if (typeof performance === "undefined") {
+    return false;
+  }
+
+  const navigationEntries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+  return navigationEntries[0]?.type === "reload";
+}
+
 function ScreenFrame({
   eyebrow,
   title,
@@ -178,10 +188,20 @@ function ResultCards({ result }: { result: ConsultationResult }) {
 }
 
 function AppRouter() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const networkStatus = useAppStore((state) => state.networkStatus);
   const setNetworkStatus = useAppStore((state) => state.setNetworkStatus);
   const lastError = useAppStore((state) => state.lastError);
   const clearError = useAppStore((state) => state.clearError);
+
+  useEffect(() => {
+    if (!isReloadNavigation() || location.pathname === "/") {
+      return;
+    }
+
+    navigate("/", { replace: true });
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     const onOnline = () => setNetworkStatus("online");
@@ -258,12 +278,12 @@ function LandingPage() {
       title="지금 흐름을 봅니다."
       subtitle="궁금한 방향을 짧고 쉽게 정리합니다."
     >
-      <section className="landing-simple">
+      <section className="landing-shell">
         <div className="landing-service-row">
           <span className="landing-service-badge">온결 사주</span>
           {latestOpenSession && latestTopic ? (
             <Link className="landing-inline-link" to={sessionPath(latestOpenSession)}>
-              이어보기 · {latestTopic.label}
+              이어서 보기
             </Link>
           ) : (
             <Link className="landing-inline-link" to="/notice">
@@ -272,33 +292,43 @@ function LandingPage() {
           )}
         </div>
 
-        <div className="landing-simple-card">
-          <div className="landing-simple-copy">
-            <p className="landing-simple-kicker">지금 보는 사주</p>
+        <div className="landing-card">
+          <div className="landing-card-copy">
+            <p className="landing-kicker">지금 보는 흐름</p>
             <h1>연애, 재회, 직장, 올해 흐름</h1>
-            <p>지금 궁금한 방향을 짧고 쉽게 봅니다.</p>
+            <p>궁금한 주제를 누르면 바로 시작합니다.</p>
           </div>
 
-          <div className="landing-simple-stage" aria-hidden="true">
-            <div className="landing-simple-tile">
-              <span>연애</span>
+          <div className="landing-dot-grid" aria-hidden="true">
+            <div className="landing-dot-tile">
+              <span className="landing-dot" />
+              <strong>연애</strong>
             </div>
-            <div className="landing-simple-tile">
-              <span>재회</span>
+            <div className="landing-dot-tile">
+              <span className="landing-dot" />
+              <strong>재회</strong>
             </div>
-            <div className="landing-simple-tile">
-              <span>직장</span>
+            <div className="landing-dot-tile">
+              <span className="landing-dot" />
+              <strong>직장</strong>
             </div>
-            <div className="landing-simple-tile">
-              <span>올해 흐름</span>
+            <div className="landing-dot-tile">
+              <span className="landing-dot" />
+              <strong>올해 흐름</strong>
             </div>
           </div>
 
-          <div className="landing-simple-actions">
+          <div className="landing-card-actions">
             <Link className="button primary landing-primary-button" to="/topics">
               시작하기
             </Link>
-            <small>주제를 고르면 바로 시작됩니다.</small>
+            {latestOpenSession && latestTopic ? (
+              <Link className="landing-secondary-link" to={sessionPath(latestOpenSession)}>
+                {latestTopic.label} 이어서 보기
+              </Link>
+            ) : (
+              <small>주제만 고르면 됩니다.</small>
+            )}
           </div>
         </div>
       </section>
@@ -503,19 +533,12 @@ function TopicHomePage() {
     <ScreenFrame className="topic-home-screen" hideNav hideHeader eyebrow="주제 선택" title="무엇을 볼까요?">
       <section className="topic-home-shell">
         <div className="topic-home-head">
-          <div className="topic-home-title">
-            <p className="overline">주제 선택</p>
-            <h1>무엇을 볼까요?</h1>
-          </div>
+          <h1>무엇을 볼까요?</h1>
           {latestOpenSession ? (
             <Link className="topic-home-link" to={sessionPath(latestOpenSession)}>
-              이어보기
+              이어서 보기
             </Link>
-          ) : (
-            <Link className="topic-home-link" to="/archive">
-              보관함
-            </Link>
-          )}
+          ) : null}
         </div>
 
         <div className="topic-home-grid">
@@ -525,7 +548,7 @@ function TopicHomePage() {
               className="topic-home-card"
               style={{
                 borderColor: topic.accent + "22",
-                background: "linear-gradient(180deg, " + topic.accent + "12 0%, rgba(255, 255, 255, 0.98) 100%)"
+                background: "linear-gradient(180deg, rgba(255, 255, 255, 0.98), " + topic.accent + "10 100%)"
               }}
               onClick={() => launchTopic(topic.id)}
             >
