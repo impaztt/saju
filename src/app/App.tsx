@@ -11,7 +11,7 @@ import {
 
 import { SIGNAL_TEMPLATES } from "../data/resultTemplates";
 import { FLOW_MAP } from "../data/questionFlows";
-import { DEFAULT_BANNER, TOPICS } from "../data/topics";
+import { TOPICS } from "../data/topics";
 import { getNode, getProgressPercent } from "../lib/engine";
 import { isFirebaseConfigured } from "../lib/firebase";
 import { computeQuestionMetrics, computeTopicMetrics } from "../lib/ops";
@@ -117,54 +117,70 @@ function absoluteShareUrl(path: string) {
   return new URL(path, window.location.origin).toString();
 }
 
+const LANDING_FEATURED_TOPIC_IDS: TopicId[] = ["romance", "chemistry", "career", "yearly"];
+
+const LANDING_TOPIC_COPY: Partial<Record<TopicId, { headline: string; caption: string }>> = {
+  romance: { headline: "우리 사이", caption: "연애" },
+  chemistry: { headline: "상대 마음", caption: "썸" },
+  career: { headline: "일의 흐름", caption: "직장" },
+  yearly: { headline: "올해 흐름", caption: "올해" }
+};
+
+function sessionStatusLabel(status: ConsultationSession["status"]) {
+  switch (status) {
+    case "review":
+      return "답변 확인 중";
+    case "loading":
+      return "결과 생성 중";
+    default:
+      return "질문 진행 중";
+  }
+}
+
 function ScreenFrame({
   eyebrow,
   title,
   subtitle,
   children,
-  footer
+  footer,
+  className,
+  footerClassName,
+  hideNav = false,
+  hideHeader = false
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  className?: string;
+  footerClassName?: string;
+  hideNav?: boolean;
+  hideHeader?: boolean;
 }) {
   return (
-    <main className="screen">
+    <main className={["screen", className].filter(Boolean).join(" ")}>
       <div className="topbar">
         <Link className="brand" to="/">
           온결 사주
         </Link>
-        <div className="topbar-links">
-          <Link to="/archive">보관함</Link>
-          <Link to="/settings">설정</Link>
-        </div>
+        {hideNav ? null : (
+          <div className="topbar-links">
+            <Link to="/archive">보관함</Link>
+            <Link to="/settings">설정</Link>
+          </div>
+        )}
       </div>
-      <header className="screen-header">
-        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h1>{title}</h1>
-        {subtitle ? <p className="subtitle">{subtitle}</p> : null}
-      </header>
+      {hideHeader ? null : (
+        <header className="screen-header">
+          {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+          <h1>{title}</h1>
+          {subtitle ? <p className="subtitle">{subtitle}</p> : null}
+        </header>
+      )}
       <section className="screen-body">{children}</section>
-      {footer ? <footer className="screen-footer">{footer}</footer> : null}
+      {footer ? <footer className={["screen-footer", footerClassName].filter(Boolean).join(" ")}>{footer}</footer> : null}
     </main>
-  );
-}
-
-function Banner({ tone = "notice", title, body, actionLabel, actionPath }: typeof DEFAULT_BANNER) {
-  return (
-    <div className={`panel banner ${tone}`}>
-      <div>
-        <strong>{title}</strong>
-        <p>{body}</p>
-      </div>
-      {actionLabel && actionPath ? (
-        <Link className="button secondary small" to={actionPath}>
-          {actionLabel}
-        </Link>
-      ) : null}
-    </div>
   );
 }
 
@@ -243,8 +259,10 @@ export function App() {
 }
 
 function LandingPage() {
+  const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
   const sessions = useAppStore((state) => state.sessions);
+  const startSession = useAppStore((state) => state.startSession);
   const latestOpenSession = useMemo(
     () =>
       [...sessions]
@@ -252,88 +270,196 @@ function LandingPage() {
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
     [sessions]
   );
+  const savedResultCount = useMemo(
+    () => sessions.filter((session) => session.saved && session.resultId).length,
+    [sessions]
+  );
   const hasDetailedProfile = isProfileComplete(profile);
+  const featuredTopics = useMemo(() => LANDING_FEATURED_TOPIC_IDS.map((topicId) => topicById(topicId)), []);
+  const compactTopics = useMemo(
+    () => TOPICS.filter((topic) => !LANDING_FEATURED_TOPIC_IDS.includes(topic.id)),
+    []
+  );
+  const latestTopic = latestOpenSession ? topicById(latestOpenSession.topicId) : featuredTopics[0];
+  const latestTopicCopy = LANDING_TOPIC_COPY[latestTopic.id];
+
+  const launchTopic = (topicId: TopicId, forceRestart = false) => {
+    const session = startSession(topicId, forceRestart);
+    navigate(sessionPath(session));
+  };
 
   return (
     <ScreenFrame
-      eyebrow="설정 없이 바로 시작하는 대화형 사주 상담"
-      title="바로 시작하고, 필요할 때만 프로필을 더해 깊게 읽습니다."
-      subtitle="처음 설정 없이 주제를 고르면 질문이 바로 시작됩니다. 원하면 생년월일과 출생시간을 넣어 리포트를 더 촘촘하게 만들 수 있습니다."
-      footer={
-        <div className="action-stack">
-          <Link className="button primary" to="/topics">
-            바로 상담 시작
-          </Link>
-          <Link className="button ghost" to="/profile">
-            {hasDetailedProfile ? "상담 프로필 수정" : "세부 정보 입력"}
-          </Link>
-        </div>
-      }
+      className="landing-screen"
+      hideNav
+      hideHeader
+      eyebrow="오늘의 상담"
+      title="무엇을 볼까요?"
+      subtitle="바로 고르세요."
     >
-      <div className="hero-panel">
-        <div>
-          <p className="eyebrow">핵심 UX</p>
-          <h2>처음 설정은 줄이고, 질문과 리포트는 더 깊게 가져갑니다.</h2>
-          <p>
-            기본 설정 없이 바로 시작할 수 있고, 각 상담은 상태 분기 뒤에 상담 초점과 막힘 요인까지 확인한 뒤 섹션형 리포트로 정리됩니다.
-          </p>
-        </div>
-        <div className="hero-stats">
-          <div>
-            <strong>10개</strong>
-            <span>상담 주제</span>
+      <section className="landing-masthead">
+        <div className="landing-masthead-copy">
+          <div className="landing-service-row">
+            <span className="landing-service-badge">온결 사주</span>
+            <Link className="landing-inline-link" to="/notice">
+              참고 안내
+            </Link>
           </div>
-          <div>
-            <strong>5단계+</strong>
-            <span>심화 질문</span>
+
+          <div className="landing-masthead-headline">
+            <h1>뭘 볼까요?</h1>
+            <p>바로 고르기</p>
           </div>
-          <div>
-            <strong>10개 섹션</strong>
-            <span>리포트 구조</span>
+
+          <div className="landing-stat-row">
+            <span className="landing-stat-pill">{TOPICS.length}개 주제</span>
+            <span className="landing-stat-pill">약 5분</span>
+            <span className="landing-stat-pill">입력 선택</span>
           </div>
         </div>
-      </div>
 
-      <Banner {...DEFAULT_BANNER} />
+        {latestOpenSession ? (
+          <Link className="landing-entry-card accent" to={sessionPath(latestOpenSession)}>
+            <span className="landing-entry-label">이어서 보기</span>
+            <strong>{latestTopicCopy?.headline ?? latestTopic.label}</strong>
+            <small>{latestTopic.label}</small>
+            <div className="landing-entry-meta">
+              <span>열기</span>
+              <span>{sessionStatusLabel(latestOpenSession.status)}</span>
+            </div>
+            <div className="landing-entry-visual" aria-hidden="true">
+              <span className="landing-entry-orb landing-entry-orb-a" />
+              <span className="landing-entry-orb landing-entry-orb-b" />
+              <span className="landing-entry-orb landing-entry-orb-c" />
+              <div className="landing-entry-bars">
+                {featuredTopics.map((topic) => (
+                  <span key={topic.id} style={{ backgroundColor: topic.accent }} />
+                ))}
+              </div>
+            </div>
+          </Link>
+        ) : (
+          <button className="landing-entry-card accent" onClick={() => launchTopic(latestTopic.id)}>
+            <span className="landing-entry-label">바로 시작</span>
+            <strong>{latestTopicCopy?.headline ?? latestTopic.label}</strong>
+            <small>{latestTopic.label}</small>
+            <div className="landing-entry-meta">
+              <span>5분</span>
+              <span>바로 시작</span>
+            </div>
+            <div className="landing-entry-visual" aria-hidden="true">
+              <span className="landing-entry-orb landing-entry-orb-a" />
+              <span className="landing-entry-orb landing-entry-orb-b" />
+              <span className="landing-entry-orb landing-entry-orb-c" />
+              <div className="landing-entry-bars">
+                {featuredTopics.map((topic) => (
+                  <span key={topic.id} style={{ backgroundColor: topic.accent }} />
+                ))}
+              </div>
+            </div>
+          </button>
+        )}
+      </section>
 
-      <div className="panel soft">
-        <p className="overline">시작 방식</p>
-        <h3>{hasDetailedProfile ? "상담 프로필이 저장돼 있습니다." : "프로필 없이 바로 상담할 수 있습니다."}</h3>
-        <p>{formatProfileSummary(profile)}</p>
-      </div>
-
-      {latestOpenSession ? (
-        <div className="panel highlight">
-          <p className="overline">이어 보기</p>
-          <h3>{topicById(latestOpenSession.topicId).label} 상담이 남아 있습니다.</h3>
-          <p>
-            현재 상태: {latestOpenSession.status === "review" ? "답변 검토" : latestOpenSession.status === "loading" ? "결과 생성 중" : "질문 진행 중"}
-          </p>
-          <Link className="button secondary" to={sessionPath(latestOpenSession)}>
-            이어서 보기
+      <section className="landing-section">
+        <div className="landing-section-head">
+          <div>
+            <p className="overline">많이 보는 주제</p>
+            <h2>많이 보는 질문</h2>
+          </div>
+          <Link className="landing-text-link" to="/topics">
+            전체 보기
           </Link>
         </div>
-      ) : null}
 
-      <div className="stack">
-        <div className="panel info-grid">
+        <div className="landing-feature-grid">
+          {featuredTopics.map((topic) => {
+            const copy = LANDING_TOPIC_COPY[topic.id] ?? {
+              headline: topic.label,
+              caption: topic.description
+            };
+
+            return (
+              <button
+                key={topic.id}
+                className="landing-feature-card"
+                style={{ borderColor: topic.accent + "24" }}
+                onClick={() => launchTopic(topic.id)}
+              >
+                <div
+                  className="landing-feature-art"
+                  style={{
+                    background: "linear-gradient(160deg, " + topic.accent + "26 0%, rgba(255, 255, 255, 0.96) 72%)"
+                  }}
+                >
+                  <span
+                    className="landing-feature-glow landing-feature-glow-a"
+                    style={{
+                      background:
+                        "radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.96) 0%, " + topic.accent + " 100%)"
+                    }}
+                  />
+                  <span className="landing-feature-glow landing-feature-glow-b" style={{ background: topic.accent + "16" }} />
+                  <span className="landing-feature-arc" style={{ borderColor: topic.accent + "40" }} />
+                  <span className="landing-feature-pill" style={{ background: topic.accent + "12", color: topic.accent }}>
+                    {topic.estimatedMinutes}분
+                  </span>
+
+                  <div className="landing-feature-copy">
+                    <p>{topic.label}</p>
+                    <strong>{copy.headline}</strong>
+                    <small>{copy.caption}</small>
+                  </div>
+                </div>
+
+                <div className="landing-feature-footer">
+                  <small>선택</small>
+                  <span>시작</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="landing-support-grid">
+        <Link className="landing-service-card" to="/archive">
+          <span>보관함</span>
+          <strong>{savedResultCount > 0 ? savedResultCount + "개 저장" : "지난 결과"}</strong>
+          <small>{savedResultCount > 0 ? "다시 보기" : "결과 보기"}</small>
+        </Link>
+
+        <Link className="landing-service-card" to="/profile">
+          <span>프로필</span>
+          <strong>{hasDetailedProfile ? profile.nickname.trim() || "입력 완료" : "선택 입력"}</strong>
+          <small>{hasDetailedProfile ? "설정됨" : "나중에 입력"}</small>
+        </Link>
+
+        <Link className="landing-service-card" to="/settings">
+          <span>설정</span>
+          <strong>서비스</strong>
+          <small>기본 설정</small>
+        </Link>
+      </section>
+
+      <section className="landing-section">
+        <div className="landing-section-head">
           <div>
-            <p className="overline">질문 방식</p>
-            <strong>상태 + 상담 초점 + 막힘 요인</strong>
-            <p>같은 고민이어도 현재 위치를 고른 뒤, 이번에 가장 알고 싶은 포인트와 복잡하게 만드는 요인까지 더 묻습니다.</p>
-          </div>
-          <div>
-            <p className="overline">결과 방식</p>
-            <strong>10개 섹션 리포트</strong>
-            <p>핵심 진단, 흐름 해석, 문제 구조, 가까운 시기, 행동 가이드를 섹션별로 나눠 더 자세히 제공합니다.</p>
+            <p className="overline">다른 주제</p>
+            <h2>다른 질문</h2>
           </div>
         </div>
-        <div className="mini-links">
-          <Link to="/topics">주제 둘러보기</Link>
-          <Link to="/profile">세부 정보 입력</Link>
-          <Link to="/archive">저장한 결과 보기</Link>
+
+        <div className="landing-mini-grid">
+          {compactTopics.map((topic) => (
+            <button key={topic.id} className="landing-mini-card" onClick={() => launchTopic(topic.id)}>
+              <span className="landing-mini-dot" style={{ backgroundColor: topic.accent }} />
+              <strong>{topic.label}</strong>
+              <small>{topic.estimatedMinutes}분</small>
+            </button>
+          ))}
         </div>
-      </div>
+      </section>
     </ScreenFrame>
   );
 }
