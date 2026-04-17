@@ -18,7 +18,13 @@ import { isFirebaseConfigured } from "../lib/firebase";
 import { computeQuestionMetrics, computeTopicMetrics } from "../lib/ops";
 import { isShareExpired } from "../lib/share";
 import { useAppStore } from "../store/useAppStore";
-import type { ConsultationResult, ConsultationSession, ShareRecord, TopicDefinition, TopicId, UserProfile } from "../types";
+import type {
+  ConsultationResult,
+  ConsultationSession,
+  TopicDefinition,
+  TopicId,
+  UserProfile
+} from "../types";
 
 function isProfileComplete(profile: UserProfile) {
   return Boolean(profile.birthDate && (profile.birthTimeUnknown || profile.birthTime));
@@ -87,7 +93,7 @@ function formatProfileSummary(profile: UserProfile) {
 
   return parts.length > 0
     ? parts.join(" · ")
-    : "빠른 시작 모드입니다. 생년월일과 출생시간을 추가하면 결과가 더 세밀해집니다.";
+    : "빠른 시작 모드입니다. 생년월일과 출생시간을 입력하면 결과가 더 세밀해집니다.";
 }
 
 function resultPath(resultId: string) {
@@ -127,6 +133,210 @@ function isReloadNavigation() {
   return navigationEntries[0]?.type === "reload";
 }
 
+type IconName =
+  | "spark"
+  | "archive"
+  | "settings"
+  | "arrowRight"
+  | "play"
+  | "notice"
+  | "profile"
+  | "back"
+  | "edit"
+  | "save"
+  | "share"
+  | "warning"
+  | "network"
+  | "cloud"
+  | "clock"
+  | "chart"
+  | "trash"
+  | "link"
+  | "check";
+
+function IconBase({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <svg
+      className={["ui-icon", className].filter(Boolean).join(" ")}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+function UiIcon({ name, className }: { name: IconName; className?: string }) {
+  switch (name) {
+    case "spark":
+      return (
+        <IconBase className={className}>
+          <path d="M12 3 14 8l5 2-5 2-2 5-2-5-5-2 5-2 2-5Z" />
+        </IconBase>
+      );
+    case "archive":
+      return (
+        <IconBase className={className}>
+          <path d="M3 8h18v12H3z" />
+          <path d="M1 4h22v4H1z" />
+          <path d="M10 12h4" />
+        </IconBase>
+      );
+    case "settings":
+      return (
+        <IconBase className={className}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.1a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.1a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.1a1 1 0 0 0 .6.9h.3a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1v.3a1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.1a1 1 0 0 0-.9.6z" />
+        </IconBase>
+      );
+    case "arrowRight":
+      return (
+        <IconBase className={className}>
+          <path d="m9 18 6-6-6-6" />
+        </IconBase>
+      );
+    case "play":
+      return (
+        <IconBase className={className}>
+          <path d="m8 5 11 7-11 7V5Z" />
+        </IconBase>
+      );
+    case "notice":
+      return (
+        <IconBase className={className}>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v5" />
+          <path d="M12 16h.01" />
+        </IconBase>
+      );
+    case "profile":
+      return (
+        <IconBase className={className}>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 20a8 8 0 0 1 16 0" />
+        </IconBase>
+      );
+    case "back":
+      return (
+        <IconBase className={className}>
+          <path d="m15 18-6-6 6-6" />
+        </IconBase>
+      );
+    case "edit":
+      return (
+        <IconBase className={className}>
+          <path d="M12 20h9" />
+          <path d="m16.5 3.5 4 4L8 20l-5 1 1-5L16.5 3.5Z" />
+        </IconBase>
+      );
+    case "save":
+      return (
+        <IconBase className={className}>
+          <path d="M5 4h11l3 3v13H5z" />
+          <path d="M9 4v6h6V4" />
+          <path d="M9 20v-6h6v6" />
+        </IconBase>
+      );
+    case "share":
+      return (
+        <IconBase className={className}>
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <path d="m8.7 10.7 6.6-3.4" />
+          <path d="m8.7 13.3 6.6 3.4" />
+        </IconBase>
+      );
+    case "warning":
+      return (
+        <IconBase className={className}>
+          <path d="M12 3 2 21h20L12 3Z" />
+          <path d="M12 9v5" />
+          <path d="M12 17h.01" />
+        </IconBase>
+      );
+    case "network":
+      return (
+        <IconBase className={className}>
+          <path d="M2 8a15 15 0 0 1 20 0" />
+          <path d="M5 12a10 10 0 0 1 14 0" />
+          <path d="M8 16a5 5 0 0 1 8 0" />
+          <circle cx="12" cy="20" r="1" />
+        </IconBase>
+      );
+    case "cloud":
+      return (
+        <IconBase className={className}>
+          <path d="M20 16.6A4.5 4.5 0 0 0 17 8a6 6 0 0 0-11.5 2A4 4 0 0 0 6 18h14" />
+        </IconBase>
+      );
+    case "clock":
+      return (
+        <IconBase className={className}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </IconBase>
+      );
+    case "chart":
+      return (
+        <IconBase className={className}>
+          <path d="M4 20h16" />
+          <path d="M7 16v-4" />
+          <path d="M12 16V8" />
+          <path d="M17 16v-7" />
+        </IconBase>
+      );
+    case "trash":
+      return (
+        <IconBase className={className}>
+          <path d="M3 6h18" />
+          <path d="M8 6V4h8v2" />
+          <path d="m6 6 1 14h10l1-14" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+        </IconBase>
+      );
+    case "link":
+      return (
+        <IconBase className={className}>
+          <path d="M10 13a5 5 0 0 1 0-7l1.5-1.5a5 5 0 1 1 7 7L17 13" />
+          <path d="M14 11a5 5 0 0 1 0 7L12.5 19.5a5 5 0 1 1-7-7L7 11" />
+        </IconBase>
+      );
+    case "check":
+      return (
+        <IconBase className={className}>
+          <path d="m5 13 4 4L19 7" />
+        </IconBase>
+      );
+    default:
+      return null;
+  }
+}
+
+function TopbarLink({ to, icon, label }: { to: string; icon: IconName; label: string }) {
+  return (
+    <Link className="topbar-link" to={to} title={label}>
+      <UiIcon name={icon} />
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+function IconLabel({ icon, children }: { icon: IconName; children: React.ReactNode }) {
+  return (
+    <span className="icon-label">
+      <UiIcon name={icon} />
+      <span>{children}</span>
+    </span>
+  );
+}
+
 function ScreenFrame({
   eyebrow,
   title,
@@ -152,12 +362,15 @@ function ScreenFrame({
     <main className={["screen", className].filter(Boolean).join(" ")}>
       <div className="topbar">
         <Link className="brand" to="/">
-          오늘 사주
+          <span className="brand-mark" aria-hidden="true">
+            <UiIcon name="spark" />
+          </span>
+          <span className="brand-text">온결 사주</span>
         </Link>
         {hideNav ? null : (
           <div className="topbar-links">
-            <Link to="/archive">보관함</Link>
-            <Link to="/settings">설정</Link>
+            <TopbarLink to="/archive" icon="archive" label="보관함" />
+            <TopbarLink to="/settings" icon="settings" label="설정" />
           </div>
         )}
       </div>
@@ -169,19 +382,23 @@ function ScreenFrame({
         </header>
       )}
       <section className="screen-body">{children}</section>
-      {footer ? <footer className={["screen-footer", footerClassName].filter(Boolean).join(" ")}>{footer}</footer> : null}
+      {footer ? (
+        <footer className={["screen-footer", footerClassName].filter(Boolean).join(" ")}>
+          {footer}
+        </footer>
+      ) : null}
     </main>
   );
 }
 
 function ResultCards({ result }: { result: ConsultationResult }) {
   return (
-    <div className="stack result-stack">
-      {result.cards.map((card) => (
-        <article key={card.key} className="panel result-card premium-card">
+    <div className="result-cards">
+      {result.cards.map((card, index) => (
+        <article key={card.key} className="panel result-card">
           <header className="result-card-header">
-            <span className="result-card-dot" />
-            <p className="overline">{card.title}</p>
+            <span className="result-card-index">{index + 1}</span>
+            <p className="result-card-title">{card.title.replace(/^\d+\.\s*/, "")}</p>
           </header>
           <div className="card-body whitespace">{card.body}</div>
         </article>
@@ -202,17 +419,14 @@ function AppRouter() {
     if (!isReloadNavigation() || location.pathname === "/") {
       return;
     }
-
     navigate("/", { replace: true });
   }, [location.pathname, navigate]);
 
   useEffect(() => {
     const onOnline = () => setNetworkStatus("online");
     const onOffline = () => setNetworkStatus("offline");
-
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
-
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
@@ -223,7 +437,6 @@ function AppRouter() {
     if (!lastError) {
       return undefined;
     }
-
     const timeout = window.setTimeout(() => clearError(), 2600);
     return () => window.clearTimeout(timeout);
   }, [lastError, clearError]);
@@ -231,9 +444,15 @@ function AppRouter() {
   return (
     <div className="app-shell">
       {networkStatus === "offline" ? (
-        <div className="global-alert warning">오프라인 상태입니다. 로컬에 저장된 세션과 결과 위주로 동작합니다.</div>
+        <div className="global-alert warning">
+          <IconLabel icon="warning">오프라인 상태입니다. 로컬 저장 기준으로 동작합니다.</IconLabel>
+        </div>
       ) : null}
-      {lastError ? <div className="global-alert error">{lastError}</div> : null}
+      {lastError ? (
+        <div className="global-alert error">
+          <IconLabel icon="warning">{lastError}</IconLabel>
+        </div>
+      ) : null}
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/notice" element={<NoticePage />} />
@@ -261,72 +480,104 @@ export function App() {
   );
 }
 
-type LandingTopicVisualKind = "romance" | "reunion" | "career" | "yearly";
-
-function LandingTopicVisual({ kind }: { kind: LandingTopicVisualKind }) {
-  return (
-    <span className={"landing-visual landing-visual-" + kind} aria-hidden="true">
-      <span className="landing-visual-dot" />
-    </span>
-  );
-}
-
 function LandingPage() {
+  const navigate = useNavigate();
   const sessions = useAppStore((state) => state.sessions);
+  const startSession = useAppStore((state) => state.startSession);
+  const acceptedNotice = useAppStore((state) => state.acceptedNotice);
   const latestOpenSession = useMemo(
     () =>
       [...sessions]
-        .filter((session) => ["draft", "review", "loading"].includes(session.status) && session.compatibility !== "outdated")
+        .filter(
+          (session) =>
+            ["draft", "review", "loading"].includes(session.status) &&
+            session.compatibility !== "outdated"
+        )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
     [sessions]
   );
   const latestTopic = latestOpenSession ? topicById(latestOpenSession.topicId) : null;
-  const landingTopics: Array<{ kind: LandingTopicVisualKind; label: string }> = [
-    { kind: "romance", label: "연애" },
-    { kind: "reunion", label: "재회" },
-    { kind: "career", label: "직장" },
-    { kind: "yearly", label: "올해 흐름" }
-  ];
+  const featuredTopics = TOPICS.filter((topic) =>
+    ["romance", "reunion", "career", "mind"].includes(topic.id)
+  );
+  const savedSessions = sessions.filter((session) => session.saved).length;
+
+  const launchTopic = (topicId: TopicId) => {
+    const session = startSession(topicId);
+    navigate(sessionPath(session));
+  };
 
   return (
-    <ScreenFrame
-      className="landing-screen"
-      hideNav
-      hideHeader
-      title="프리미엄 상담"
-    >
-      <section className="landing-shell">
-        <header className="landing-header">
-          <p className="landing-eyebrow">PREMIUM SAJU REPORT</p>
-          <h1>인생의 결정적 흐름을 봅니다.</h1>
-          <p className="landing-desc">지금 당신에게 가장 필요한 답을 찾아드립니다.</p>
-        </header>
+    <ScreenFrame className="landing-screen" hideNav hideHeader title="온결 사주">
+      <section className="landing-hero">
+        <p className="landing-kicker">INTERACTIVE SAJU</p>
+        <h1>복잡한 고민을 짧고 선명하게 정리합니다.</h1>
+        <p>긴 해석 페이지 대신, 필요한 질문만 따라가면 카드형 결과를 확인할 수 있습니다.</p>
+      </section>
 
-        <div className="landing-topic-grid">
-          {landingTopics.map((topic) => (
-            <Link key={topic.kind} to="/topics" className={"landing-topic-tile landing-topic-tile-" + topic.kind}>
-              <LandingTopicVisual kind={topic.kind} />
-              <div className="landing-topic-info">
-                <strong>{topic.label}</strong>
-                <small>상세 리포트 보기</small>
-              </div>
-            </Link>
-          ))}
+      <section className="landing-stats" aria-label="서비스 정보">
+        <div className="stat-chip">
+          <IconLabel icon="clock">평균 5분 내 완료</IconLabel>
         </div>
-
-        <div className="landing-actions">
-          <Link className="button primary landing-main-btn" to="/topics">
-            상담 시작하기
-          </Link>
-          {latestOpenSession && latestTopic ? (
-            <Link className="landing-resume-link" to={sessionPath(latestOpenSession)}>
-              {latestTopic.label} 이어서 보기
-            </Link>
-          ) : (
-            <Link className="landing-resume-link" to="/notice">서비스 이용 안내</Link>
-          )}
+        <div className="stat-chip">
+          <IconLabel icon="save">저장된 결과 {savedSessions}개</IconLabel>
+        </div>
+        <div className="stat-chip">
+          <IconLabel icon="share">링크 공유 가능</IconLabel>
         </div>
       </section>
+
+      <section className="landing-featured">
+        <p className="section-title">자주 선택하는 주제</p>
+        <div className="landing-topic-grid">
+          {featuredTopics.map((topic) => (
+            <button
+              key={topic.id}
+              className={"landing-topic-tile topic-tone-" + topic.id}
+              onClick={() => launchTopic(topic.id)}
+            >
+              <div className="landing-topic-head">
+                <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
+                <strong>{topic.label}</strong>
+              </div>
+              <p>{topic.shortBlurb}</p>
+              <span className="topic-meta">
+                {topic.estimatedMinutes}분
+                <UiIcon name="arrowRight" />
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {latestOpenSession && latestTopic ? (
+        <Link className="panel resume-panel" to={sessionPath(latestOpenSession)}>
+          <div>
+            <p className="overline">이어 하기</p>
+            <h3>{latestTopic.label} 상담을 이어서 진행합니다.</h3>
+            <p>최근 업데이트 {formatDateTime(latestOpenSession.updatedAt)}</p>
+          </div>
+          <UiIcon name="arrowRight" />
+        </Link>
+      ) : (
+        <Link className="panel resume-panel" to={acceptedNotice ? "/topics" : "/notice"}>
+          <div>
+            <p className="overline">시작 전 확인</p>
+            <h3>해석 기준과 주의사항을 먼저 확인해 주세요.</h3>
+            <p>이용 안내를 읽은 뒤 바로 상담을 시작할 수 있습니다.</p>
+          </div>
+          <UiIcon name="arrowRight" />
+        </Link>
+      )}
+
+      <div className="action-stack">
+        <Link className="button primary" to="/topics">
+          <IconLabel icon="play">전체 주제 보기</IconLabel>
+        </Link>
+        <Link className="button ghost" to="/profile">
+          <IconLabel icon="profile">프로필 설정</IconLabel>
+        </Link>
+      </div>
     </ScreenFrame>
   );
 }
@@ -338,8 +589,8 @@ function NoticePage() {
   return (
     <ScreenFrame
       eyebrow="서비스 유의사항"
-      title="참고용 해석 기준을 짧게 확인해 주세요."
-      subtitle="이 서비스는 흐름과 경향을 정리하는 상담형 도구입니다. 중요한 현실 판단은 실제 정보와 함께 보셔야 합니다."
+      title="결과를 해석할 때 지킬 기준을 먼저 안내합니다."
+      subtitle="단정적인 예언 대신 흐름과 선택 기준을 중심으로 결과를 제공합니다."
       footer={
         <div className="action-stack">
           <button
@@ -349,258 +600,172 @@ function NoticePage() {
               navigate("/topics");
             }}
           >
-            확인하고 바로 시작
+            <IconLabel icon="check">확인하고 시작</IconLabel>
           </button>
           <Link className="button ghost" to="/">
-            처음으로
+            <IconLabel icon="back">처음으로</IconLabel>
           </Link>
         </div>
       }
     >
-      <div className="stack">
-        <div className="panel">
-          <p className="overline">해석 기준</p>
-          <h3>단정 대신 흐름 중심으로 안내합니다.</h3>
-          <p>결과는 경향, 분위기, 리듬을 중심으로 작성되며 확정적인 예언처럼 표현하지 않습니다.</p>
-        </div>
-        <div className="panel">
-          <p className="overline">출생시간 모름 안내</p>
-          <h3>출생시간을 모르면 세부 시기감보다 큰 흐름 위주로 해석합니다.</h3>
-          <p>정확도에 관한 안내 문구가 결과 카드 상단에도 다시 노출됩니다.</p>
-        </div>
-        <div className="panel">
-          <p className="overline">결정 주의</p>
-          <h3>의료, 법률, 재정 판단은 별도 근거와 함께 보세요.</h3>
-          <p>불안을 자극하거나 희망 고문처럼 느껴지는 문장은 피하고, 현실적인 선택 기준을 함께 제시합니다.</p>
-        </div>
+      <div className="notice-list">
+        <article className="panel notice-item">
+          <IconLabel icon="notice">단정 대신 경향 중심으로 해석합니다.</IconLabel>
+          <p>결과는 참고용 상담 문장입니다. 실제 결정은 현실 정보와 함께 판단해 주세요.</p>
+        </article>
+        <article className="panel notice-item">
+          <IconLabel icon="clock">출생시간 미입력 시 큰 흐름 중심으로 제공됩니다.</IconLabel>
+          <p>출생시간이 없으면 세부 시기보다 구조와 방향성 중심으로 안내됩니다.</p>
+        </article>
+        <article className="panel notice-item">
+          <IconLabel icon="warning">의료·법률·재정 판단은 별도 근거가 필요합니다.</IconLabel>
+          <p>전문 판단이 필요한 사안은 관련 자료와 전문가 의견을 함께 확인하세요.</p>
+        </article>
       </div>
     </ScreenFrame>
   );
 }
 
 function ProfilePage() {
-
   const navigate = useNavigate();
-
   const savedProfile = useAppStore((state) => state.profile);
-
   const updateProfile = useAppStore((state) => state.updateProfile);
-
   const [form, setForm] = useState<UserProfile>(savedProfile);
 
-
-
   useEffect(() => {
-
     setForm(savedProfile);
-
   }, [savedProfile]);
 
-
-
   const submit = () => {
-
     const normalized: UserProfile = {
-
       ...form,
-
       nickname: form.nickname.trim(),
-
       birthTime: form.birthDate && !form.birthTimeUnknown ? form.birthTime : "",
-
       birthTimeUnknown: !form.birthDate || form.birthTimeUnknown || !form.birthTime
-
     };
 
-
-
     updateProfile(normalized);
-
     navigate("/topics");
-
   };
 
-
-
   return (
-
     <ScreenFrame
-
-      title="프로필 설정"
-
-      subtitle="결과 카드의 디테일을 높이는 선택 정보입니다."
-
+      eyebrow="프로필"
+      title="상담에 반영할 기본 정보를 준비해 주세요."
+      subtitle="모든 항목은 선택입니다. 입력할수록 결과 카드가 더 구체적으로 바뀝니다."
       footer={
-
         <div className="action-stack">
-
           <button className="button primary" onClick={submit}>
-
-            저장하고 주제 선택
-
+            <IconLabel icon="save">저장하고 주제 선택</IconLabel>
           </button>
-
           <Link className="button ghost" to="/topics">
-
-            입력 없이 바로 시작
-
+            <IconLabel icon="play">입력 없이 시작</IconLabel>
           </Link>
-
         </div>
-
       }
-
     >
+      <div className="panel soft">
+        <p className="overline">현재 입력 상태</p>
+        <p>{formatProfileSummary(form)}</p>
+      </div>
 
       <div className="stack compact-stack">
-
         <label className="field">
-
           <span>닉네임</span>
-
           <input
-
-            placeholder="상담에 사용할 이름"
-
+            placeholder="상담에서 사용할 이름"
             value={form.nickname}
-
-            onChange={(event) => setForm((current) => ({ ...current, nickname: event.target.value }))}
-
+            onChange={(event) =>
+              setForm((current) => ({ ...current, nickname: event.target.value }))
+            }
           />
-
         </label>
 
         <div className="info-grid profile-grid">
-
           <label className="field">
-
             <span>생년월일 (선택)</span>
-
             <input
-
               type="date"
-
               value={form.birthDate}
-
-              onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
-
+              onChange={(event) =>
+                setForm((current) => ({ ...current, birthDate: event.target.value }))
+              }
             />
-
           </label>
 
           <label className="field">
-
             <span>출생시간 (선택)</span>
-
             <input
-
               type="time"
-
               value={form.birthTime}
-
               disabled={form.birthTimeUnknown || !form.birthDate}
-
-              onChange={(event) => setForm((current) => ({ ...current, birthTime: event.target.value }))}
-
+              onChange={(event) =>
+                setForm((current) => ({ ...current, birthTime: event.target.value }))
+              }
             />
-
           </label>
-
         </div>
 
         <label className="checkbox-row mini-checkbox">
-
           <input
-
             type="checkbox"
-
             checked={form.birthTimeUnknown}
-
             onChange={(event) =>
-
               setForm((current) => ({
-
                 ...current,
-
                 birthTimeUnknown: event.target.checked,
-
                 birthTime: event.target.checked ? "" : current.birthTime || "12:00"
-
               }))
-
             }
-
           />
-
           <span>출생시간은 모름</span>
-
         </label>
 
         <div className="field">
-
           <span>성별</span>
-
           <div className="chip-row">
-
-            {[{
-
-              label: "여성",
-
-              value: "female"
-
-            }, {
-
-              label: "남성",
-
-              value: "male"
-
-            }, {
-
-              label: "기타",
-
-              value: "other"
-
-            }].map((item) => (
-
+            {[
+              { label: "여성", value: "female" },
+              { label: "남성", value: "male" },
+              { label: "기타", value: "other" }
+            ].map((item) => (
               <button
-
                 key={item.value}
-
                 className={"chip" + (form.gender === item.value ? " active" : "")}
-
-                onClick={() => setForm((current) => ({ ...current, gender: item.value as UserProfile["gender"] }))}
-
+                onClick={() =>
+                  setForm((current) => ({
+                    ...current,
+                    gender: item.value as UserProfile["gender"]
+                  }))
+                }
               >
-
                 {item.label}
-
               </button>
-
             ))}
-
           </div>
-
         </div>
-
       </div>
-
     </ScreenFrame>
-
   );
-
 }
 
 function TopicHomePage() {
   const navigate = useNavigate();
+  const profile = useAppStore((state) => state.profile);
   const sessions = useAppStore((state) => state.sessions);
   const startSession = useAppStore((state) => state.startSession);
   const latestOpenSession = useMemo(
     () =>
       [...sessions]
-        .filter((session) => ["draft", "review", "loading"].includes(session.status) && session.compatibility !== "outdated")
+        .filter(
+          (session) =>
+            ["draft", "review", "loading"].includes(session.status) &&
+            session.compatibility !== "outdated"
+        )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
     [sessions]
   );
+  const profileReady = isProfileComplete(profile);
 
   const launchTopic = (topicId: TopicId, forceRestart = false) => {
     const session = startSession(topicId, forceRestart);
@@ -608,35 +773,54 @@ function TopicHomePage() {
   };
 
   return (
-    <ScreenFrame className="topic-home-screen" hideNav hideHeader title="주제 선택">
-      <section className="topic-home-shell">
-        <header className="topic-home-head">
-          <p className="eyebrow">CHOOSE YOUR PATH</p>
-          <h1>심층 분석 주제</h1>
-        </header>
-
-        <div className="topic-home-grid">
-          {TOPICS.map((topic) => (
-            <button
-              key={topic.id}
-              className="topic-home-card"
-              onClick={() => launchTopic(topic.id)}
-            >
-              <span className="topic-home-card-dot" />
-              <strong>{topic.label}</strong>
-              <span className="topic-home-link">시작 →</span>
-            </button>
-          ))}
+    <ScreenFrame
+      eyebrow="주제 선택"
+      title="지금 고민과 가장 가까운 상담 주제를 고르세요."
+      subtitle="진행 중인 주제는 이어서 시작하고, 새 주제는 즉시 질문이 열립니다."
+    >
+      <div className="panel soft profile-panel">
+        <div>
+          <p className="overline">프로필 상태</p>
+          <h3>{profileReady ? "기본 정보 입력 완료" : "빠른 시작 모드"}</h3>
+          <p>{formatProfileSummary(profile)}</p>
         </div>
+        <Link className="button ghost small" to="/profile">
+          <IconLabel icon="profile">프로필 수정</IconLabel>
+        </Link>
+      </div>
 
-        {latestOpenSession ? (
-          <div className="topic-home-actions">
-            <Link className="landing-resume-link" to={sessionPath(latestOpenSession)}>
-              진행 중인 상담 이어서 보기
-            </Link>
+      {latestOpenSession ? (
+        <Link className="panel continue-panel" to={sessionPath(latestOpenSession)}>
+          <div>
+            <p className="overline">진행 중 상담</p>
+            <h3>{topicById(latestOpenSession.topicId).label} 상담을 이어서 진행합니다.</h3>
+            <p>최근 업데이트 {formatDateTime(latestOpenSession.updatedAt)}</p>
           </div>
-        ) : null}
-      </section>
+          <UiIcon name="arrowRight" />
+        </Link>
+      ) : null}
+
+      <div className="topic-home-grid">
+        {TOPICS.map((topic) => (
+          <button
+            key={topic.id}
+            className={"topic-home-card topic-tone-" + topic.id}
+            onClick={() => launchTopic(topic.id)}
+          >
+            <div className="topic-home-main">
+              <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
+              <div>
+                <strong>{topic.label}</strong>
+                <p>{topic.shortBlurb}</p>
+              </div>
+            </div>
+            <div className="topic-home-meta">
+              <span>{topic.estimatedMinutes}분</span>
+              <UiIcon name="arrowRight" />
+            </div>
+          </button>
+        ))}
+      </div>
     </ScreenFrame>
   );
 }
@@ -670,8 +854,8 @@ function SessionPage() {
     return (
       <ScreenFrame
         eyebrow="세션 보호"
-        title="질문 구조가 바뀌어 기존 진행 세션을 그대로 이어갈 수 없습니다."
-        subtitle="이전 응답은 보존하고, 현재 버전 기준으로 새 세션을 시작하도록 안내합니다."
+        title="질문 구조가 변경되어 기존 세션을 그대로 이어갈 수 없습니다."
+        subtitle="기존 응답은 보호 상태로 남기고, 최신 버전 기준으로 새 세션을 시작합니다."
         footer={
           <div className="action-stack">
             <button
@@ -681,18 +865,18 @@ function SessionPage() {
                 navigate(sessionPath(next), { replace: true });
               }}
             >
-              현재 버전으로 새로 시작
+              <IconLabel icon="play">현재 버전으로 다시 시작</IconLabel>
             </button>
             <Link className="button ghost" to="/topics">
-              주제 홈으로
+              <IconLabel icon="back">주제 목록으로</IconLabel>
             </Link>
           </div>
         }
       >
         <div className="panel warning-panel">
           <p className="overline">호환성 상태</p>
-          <h3>기존 질문 노드와 현재 카탈로그가 일치하지 않습니다.</h3>
-          <p>실서비스에서는 이전 결과 보존, 세션 마이그레이션 로그, 운영자 알림과 함께 처리하는 구조를 권장합니다.</p>
+          <h3>현재 질문 카탈로그와 기존 노드가 일치하지 않습니다.</h3>
+          <p>실서비스에서는 마이그레이션 로그와 운영자 알림을 함께 남기는 구조를 권장합니다.</p>
         </div>
       </ScreenFrame>
     );
@@ -707,6 +891,7 @@ function SessionPage() {
 
   const progress = getProgressPercent(session);
   const topic = topicById(session.topicId);
+  const currentStep = session.responses.length + 1;
 
   return (
     <ScreenFrame
@@ -725,26 +910,32 @@ function SessionPage() {
               goBack(session.id);
             }}
           >
-            이전 질문
+            <IconLabel icon="back">이전 질문</IconLabel>
           </button>
           <Link className="button ghost" to={`/review/${session.id}`}>
-            답변 검토
+            <IconLabel icon="edit">답변 검토</IconLabel>
           </Link>
         </div>
       }
     >
-      <div className="progress-wrap">
+      <div className="panel soft session-progress-panel">
+        <div className="progress-caption">
+          <span>진행 단계</span>
+          <span>
+            {currentStep}/{flow.nodes.length} · {progress}%
+          </span>
+        </div>
         <div className="progress-track">
           <span style={{ width: `${progress}%` }} />
         </div>
-        <small>{session.responses.length + 1} / {flow.nodes.length}</small>
       </div>
+
       {session.compatibility === "warning" ? (
-        <div className="panel soft">
-          <p className="overline">버전 주의</p>
-          <p>질문 카탈로그가 업데이트되어 현재 세션을 최신 버전 기준으로 이어서 보여줍니다.</p>
+        <div className="panel notice-panel">
+          <IconLabel icon="warning">질문 카탈로그가 업데이트되어 최신 버전 기준으로 이어집니다.</IconLabel>
         </div>
       ) : null}
+
       <div className="choice-list">
         {node.options.map((option) => (
           <button
@@ -758,7 +949,10 @@ function SessionPage() {
               navigate(sessionPath(updated));
             }}
           >
-            <strong>{option.label}</strong>
+            <div className="choice-head">
+              <strong>{option.label}</strong>
+              <UiIcon name="arrowRight" />
+            </div>
             {option.description ? <p>{option.description}</p> : null}
           </button>
         ))}
@@ -788,8 +982,8 @@ function ReviewPage() {
   return (
     <ScreenFrame
       eyebrow="답변 검토"
-      title="지금까지의 답변을 마지막으로 확인해 주세요."
-      subtitle="여기서 수정하면 이후 분기와 결과 카드가 함께 바뀝니다."
+      title="결과 생성 전에 답변을 다시 확인하세요."
+      subtitle="여기서 수정한 항목은 이후 분기와 결과 카드에 즉시 반영됩니다."
       footer={
         <div className="action-stack">
           <button
@@ -799,10 +993,10 @@ function ReviewPage() {
               navigate(`/loading/${session.id}`);
             }}
           >
-            결과 보기
+            <IconLabel icon="play">결과 생성 시작</IconLabel>
           </button>
           <Link className="button ghost" to={`/session/${session.id}`}>
-            질문으로 돌아가기
+            <IconLabel icon="back">질문으로 돌아가기</IconLabel>
           </Link>
         </div>
       }
@@ -811,32 +1005,45 @@ function ReviewPage() {
         <p className="overline">기본 정보</p>
         <p>{formatProfileSummary(session.profileSnapshot)}</p>
       </div>
-      <div className="stack">
-        {session.responses.map((response) => {
-          const node = getNode(flow, response.nodeId);
-          return (
-            <div key={response.nodeId} className="panel review-item">
-              <div>
-                <p className="overline">{node?.prompt}</p>
-                <h3>{response.label}</h3>
-              </div>
-              <button
-                className="button secondary small"
-                onClick={() => {
-                  rewindToNode(session.id, response.nodeId);
-                  navigate(`/session/${session.id}`);
-                }}
-              >
-                수정
-              </button>
-            </div>
-          );
-        })}
-      </div>
+
+      {session.responses.length === 0 ? (
+        <div className="panel">
+          <h3>아직 답변한 질문이 없습니다.</h3>
+          <p>질문 화면으로 돌아가 첫 답변부터 시작해 주세요.</p>
+        </div>
+      ) : (
+        <div className="review-list">
+          {session.responses.map((response, index) => {
+            const node = getNode(flow, response.nodeId);
+            return (
+              <article key={response.nodeId} className="panel review-item">
+                <div className="review-main">
+                  <span className="step-index">{index + 1}</span>
+                  <div>
+                    <p className="overline">{node?.prompt}</p>
+                    <h3>{response.label}</h3>
+                  </div>
+                </div>
+                <button
+                  className="button secondary small"
+                  onClick={() => {
+                    rewindToNode(session.id, response.nodeId);
+                    navigate(`/session/${session.id}`);
+                  }}
+                >
+                  <IconLabel icon="edit">수정</IconLabel>
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
       {session.profileSnapshot.birthTimeUnknown ? (
         <div className="panel notice-panel">
-          <p className="overline">정확도 참고</p>
-          <p>출생시간을 모르는 상태라 결과는 세부 시기보다 큰 흐름 중심으로 정리됩니다.</p>
+          <IconLabel icon="clock">
+            출생시간 미입력 상태라 결과는 세부 시기보다 큰 흐름 중심으로 생성됩니다.
+          </IconLabel>
         </div>
       ) : null}
     </ScreenFrame>
@@ -877,19 +1084,22 @@ function LoadingPage() {
   return (
     <ScreenFrame
       eyebrow="결과 생성"
-      title="현재 답변 흐름을 정리하고 있습니다."
-      subtitle="기본 결과를 먼저 만들고, 네트워크가 가능하면 확장 결과 소스로 전환할 수 있는 구조를 기준으로 설계했습니다."
+      title="답변 흐름을 분석하고 결과를 생성하고 있습니다."
+      subtitle="로컬 결과를 먼저 생성한 뒤, 연결 가능 상태에서는 확장 소스로 전환할 수 있게 설계했습니다."
     >
-      <div className="loading-stack">
-        <div className="loading-orb" />
-        <div className="panel soft">
-          <p className="overline">생성 단계</p>
-          <ul className="plain-list">
-            <li>질문 태그 수집</li>
-            <li>주제별 기본 템플릿 병합</li>
-            <li>신호 태그 기반 카드 조정</li>
-          </ul>
-        </div>
+      <div className="loading-wrap">
+        <div className="loading-spinner" aria-hidden="true" />
+        <ul className="loading-steps">
+          <li>
+            <IconLabel icon="check">질문 태그 수집</IconLabel>
+          </li>
+          <li>
+            <IconLabel icon="check">주제 기본 템플릿 병합</IconLabel>
+          </li>
+          <li>
+            <IconLabel icon="check">신호 태그 기반 카드 조정</IconLabel>
+          </li>
+        </ul>
       </div>
     </ScreenFrame>
   );
@@ -919,11 +1129,11 @@ function ResultPage() {
     <ScreenFrame
       eyebrow={topic.label}
       title={result.summary}
-      subtitle="결과는 카드 단위로 나누어 읽을 수 있고, 저장하거나 공유 링크를 만들 수 있습니다."
+      subtitle="카드 단위로 읽고, 저장하거나 공유 링크를 발급할 수 있습니다."
       footer={
         <div className="action-stack">
           <button className="button primary" onClick={() => saveSession(session.id)}>
-            {session.saved ? "저장됨" : "결과 저장"}
+            <IconLabel icon="save">{session.saved ? "결과 저장됨" : "결과 저장"}</IconLabel>
           </button>
           <button
             className="button secondary"
@@ -939,13 +1149,15 @@ function ResultPage() {
               setCopied(url);
             }}
           >
-            공유 링크 만들기
+            <IconLabel icon="share">공유 링크 만들기</IconLabel>
           </button>
-          <button className="button ghost" onClick={() => navigate("/topics")}>다른 주제 보기</button>
+          <button className="button ghost" onClick={() => navigate("/topics")}>
+            <IconLabel icon="play">다른 주제 시작</IconLabel>
+          </button>
         </div>
       }
     >
-      <div className="panel hero-result">
+      <div className="panel result-summary">
         <div className="badge-row">
           <span className="badge">{topic.label}</span>
           <span className="badge">{result.generationSource}</span>
@@ -957,7 +1169,7 @@ function ResultPage() {
 
       {copied ? (
         <div className="panel highlight">
-          <p className="overline">공유 링크</p>
+          <p className="overline">복사된 공유 링크</p>
           <p className="whitespace">{copied}</p>
         </div>
       ) : null}
@@ -967,6 +1179,17 @@ function ResultPage() {
           <p className="overline">활성 링크</p>
           <p>{absoluteShareUrl(activeShare.urlPath)}</p>
           <small>만료일 {formatDate(activeShare.expiresAt)}</small>
+        </div>
+      ) : null}
+
+      {result.recommendedQuestions.length > 0 ? (
+        <div className="panel soft">
+          <p className="overline">추가로 보면 좋은 질문</p>
+          <ul className="plain-list">
+            {result.recommendedQuestions.map((question) => (
+              <li key={question}>{question}</li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -988,13 +1211,13 @@ function ArchivePage() {
 
   return (
     <ScreenFrame
-      eyebrow="이전 결과"
-      title="저장해 둔 결과를 다시 읽을 수 있습니다."
-      subtitle="주제, 생성 시각, 요약 문장을 기준으로 보관합니다."
+      eyebrow="보관함"
+      title="저장한 결과를 다시 확인할 수 있습니다."
+      subtitle="최근 생성한 결과부터 시간순으로 정렬됩니다."
       footer={
         <div className="action-stack">
           <Link className="button primary" to="/topics">
-            새 상담 시작
+            <IconLabel icon="play">새 상담 시작</IconLabel>
           </Link>
         </div>
       }
@@ -1002,13 +1225,16 @@ function ArchivePage() {
       {savedResults.length === 0 ? (
         <div className="panel empty-state">
           <h3>아직 저장한 결과가 없습니다.</h3>
-          <p>결과 화면에서 저장 버튼을 누르면 이곳에서 다시 볼 수 있습니다.</p>
+          <p>결과 화면에서 저장 버튼을 누르면 이곳에 보관됩니다.</p>
         </div>
       ) : (
-        <div className="stack">
+        <div className="archive-list">
           {savedResults.map((result) => (
             <Link key={result.id} className="panel result-link" to={resultPath(result.id)}>
-              <p className="overline">{topicById(result.topicId).label}</p>
+              <div className="archive-head">
+                <p className="overline">{topicById(result.topicId).label}</p>
+                <UiIcon name="arrowRight" />
+              </div>
               <h3>{result.summary}</h3>
               <p>{formatDateTime(result.generatedAt)}</p>
             </Link>
@@ -1030,13 +1256,16 @@ function SharedPage() {
     return (
       <ScreenFrame
         eyebrow="공유 결과"
-        title="공유 링크가 만료되었거나 비활성화되었습니다."
-        subtitle="실서비스에서는 만료 안내, 재발급 요청, 관리자 비활성화 사유를 함께 노출하는 흐름을 권장합니다."
-        footer={<Link className="button primary" to="/">홈으로</Link>}
+        title="링크가 만료되었거나 비활성화되었습니다."
+        subtitle="유효한 링크가 아니면 결과를 노출하지 않도록 안전하게 차단합니다."
+        footer={
+          <Link className="button primary" to="/">
+            <IconLabel icon="play">홈으로 이동</IconLabel>
+          </Link>
+        }
       >
         <div className="panel warning-panel">
-          <p className="overline">링크 상태</p>
-          <p>만료 또는 비활성화된 링크는 결과를 직접 노출하지 않고 안전하게 차단합니다.</p>
+          <IconLabel icon="warning">공유 링크 상태를 확인해 주세요.</IconLabel>
         </div>
       </ScreenFrame>
     );
@@ -1046,13 +1275,18 @@ function SharedPage() {
     <ScreenFrame
       eyebrow="공유 결과"
       title={result.summary}
-      subtitle={`만료일 ${formatDate(share.expiresAt)}까지 읽을 수 있는 링크입니다.`}
-      footer={<Link className="button primary" to="/">내 상담 시작</Link>}
+      subtitle={`만료일 ${formatDate(share.expiresAt)}까지 확인할 수 있습니다.`}
+      footer={
+        <Link className="button primary" to="/">
+          <IconLabel icon="play">내 상담 시작</IconLabel>
+        </Link>
+      }
     >
       <ResultCards result={result} />
     </ScreenFrame>
   );
 }
+
 function SettingsPage() {
   const networkStatus = useAppStore((state) => state.networkStatus);
   const sessions = useAppStore((state) => state.sessions);
@@ -1063,61 +1297,77 @@ function SettingsPage() {
 
   return (
     <ScreenFrame
-      eyebrow="설정 / 데이터 관리"
-      title="세션, 공유 링크, 로컬 데이터를 관리합니다."
-      subtitle="Firebase 연결 상태와 현재 저장량을 함께 확인할 수 있습니다."
+      eyebrow="설정"
+      title="데이터와 공유 링크를 관리합니다."
+      subtitle="로컬 상태, 네트워크, Firebase 연결 가능 여부를 함께 확인할 수 있습니다."
     >
-      <div className="stack">
-        <div className="panel info-grid">
-          <div>
-            <p className="overline">Firebase</p>
-            <strong>{isFirebaseConfigured ? "연결 가능" : "환경 변수 미설정"}</strong>
-            <p>Hosting, Auth, Firestore, Functions, Storage, Analytics, Remote Config 기준 구조로 설계했습니다.</p>
-          </div>
-          <div>
-            <p className="overline">네트워크</p>
-            <strong>{networkStatus === "online" ? "온라인" : "오프라인"}</strong>
-            <p>오프라인일 때도 로컬 세션 복원과 기본 결과 확인은 가능합니다.</p>
-          </div>
+      <div className="info-grid settings-grid">
+        <div className="panel soft">
+          <p className="overline">Firebase</p>
+          <h3>
+            <IconLabel icon="cloud">
+              {isFirebaseConfigured ? "환경 변수 연결 가능" : "환경 변수 미설정"}
+            </IconLabel>
+          </h3>
+          <p>Hosting/Auth/Firestore/Functions 기준 구조로 확장할 수 있습니다.</p>
         </div>
         <div className="panel soft">
-          <p className="overline">로컬 데이터 현황</p>
-          <ul className="plain-list">
-            <li>세션 {sessions.length}개</li>
-            <li>결과 {results.length}개</li>
-            <li>공유 링크 {shares.length}개</li>
-          </ul>
+          <p className="overline">네트워크</p>
+          <h3>
+            <IconLabel icon="network">{networkStatus === "online" ? "온라인" : "오프라인"}</IconLabel>
+          </h3>
+          <p>오프라인 상태에서도 로컬 세션 복원과 결과 조회는 가능합니다.</p>
         </div>
-        <div className="stack">
+      </div>
+
+      <div className="panel">
+        <p className="overline">로컬 데이터 현황</p>
+        <div className="metric-row">
+          <span>세션 {sessions.length}</span>
+          <span>결과 {results.length}</span>
+          <span>공유 링크 {shares.length}</span>
+        </div>
+      </div>
+
+      {shares.length > 0 ? (
+        <div className="share-list">
           {shares.map((share) => (
-            <div key={share.token} className="panel review-item">
+            <article key={share.token} className="panel share-item">
               <div>
                 <p className="overline">공유 링크</p>
                 <h3>{absoluteShareUrl(share.urlPath)}</h3>
-                <p>상태 {share.status} · 만료 {formatDate(share.expiresAt)}</p>
+                <p>
+                  상태 {share.status} · 만료 {formatDate(share.expiresAt)}
+                </p>
               </div>
               {share.status === "active" ? (
                 <button className="button secondary small" onClick={() => disableShare(share.token)}>
-                  비활성화
+                  <IconLabel icon="link">비활성화</IconLabel>
                 </button>
               ) : null}
-            </div>
+            </article>
           ))}
         </div>
-        <div className="panel warning-panel">
-          <p className="overline">삭제 정책</p>
-          <p>데이터 삭제 시 로컬에 저장된 프로필, 세션, 결과, 공유 링크를 모두 제거합니다.</p>
-          <button
-            className="button danger"
-            onClick={() => {
-              if (window.confirm("저장된 데이터를 모두 삭제할까요?")) {
-                deleteAllData();
-              }
-            }}
-          >
-            로컬 데이터 전체 삭제
-          </button>
+      ) : (
+        <div className="panel soft">
+          <p className="overline">공유 링크</p>
+          <p>아직 생성된 공유 링크가 없습니다.</p>
         </div>
+      )}
+
+      <div className="panel warning-panel">
+        <p className="overline">데이터 삭제</p>
+        <p>프로필, 세션, 결과, 공유 링크를 모두 삭제합니다.</p>
+        <button
+          className="button danger"
+          onClick={() => {
+            if (window.confirm("저장된 데이터를 모두 삭제할까요?")) {
+              deleteAllData();
+            }
+          }}
+        >
+          <IconLabel icon="trash">로컬 데이터 전체 삭제</IconLabel>
+        </button>
       </div>
     </ScreenFrame>
   );
@@ -1128,68 +1378,64 @@ function OpsPage() {
   const topicMetrics = useMemo(() => computeTopicMetrics(sessions), [sessions]);
   const questionMetrics = useMemo(() => computeQuestionMetrics(sessions), [sessions]);
   const totalNodes = Object.values(FLOW_MAP).reduce((sum, flow) => sum + flow.nodes.length, 0);
+  const dropoutCandidates = questionMetrics
+    .filter((metric) => metric.pendingDropouts > 0)
+    .sort((a, b) => b.dropoutRate - a.dropoutRate)
+    .slice(0, 8);
 
   return (
     <ScreenFrame
       eyebrow="운영 구조"
-      title="운영자 기능과 통계 구조를 한 화면에서 확인합니다."
-      subtitle="현재 화면은 로컬 프로토타입이지만, 같은 구조를 Firestore 카탈로그와 Functions로 확장할 수 있게 설계했습니다."
+      title="운영 지표와 카탈로그 규모를 확인합니다."
+      subtitle="현재 화면은 로컬 프로토타입이며 동일한 구조를 Firestore/Functions로 확장할 수 있습니다."
     >
-      <div className="stack">
-        <div className="panel info-grid">
-          <div>
-            <p className="overline">카탈로그 규모</p>
-            <strong>{TOPICS.length}개 주제</strong>
-            <p>질문 노드 {totalNodes}개, 결과 신호 템플릿 {SIGNAL_TEMPLATES.length}개 기준.</p>
-          </div>
-          <div>
-            <p className="overline">관리 모듈</p>
-            <strong>주제 / 질문 / 분기 / 결과 / 배너</strong>
-            <p>운영자 UI에서는 카탈로그 CRUD, 배포 버전, 통계 대시보드를 분리하는 구조를 권장합니다.</p>
-          </div>
+      <div className="panel">
+        <p className="overline">요약 지표</p>
+        <div className="metric-row">
+          <span>
+            <IconLabel icon="chart">주제 {TOPICS.length}개</IconLabel>
+          </span>
+          <span>
+            <IconLabel icon="chart">질문 노드 {totalNodes}개</IconLabel>
+          </span>
+          <span>
+            <IconLabel icon="chart">신호 템플릿 {SIGNAL_TEMPLATES.length}개</IconLabel>
+          </span>
         </div>
+      </div>
 
-        <div className="panel soft">
-          <p className="overline">운영자 기능 구조</p>
-          <ul className="plain-list">
-            <li>주제 관리: 노출 순서, 강조 문구, 예상 소요 시간, 배너 연결</li>
-            <li>질문 노드 관리: ID, 질문 문구, 보조 문구, 질문 타입, 버전</li>
-            <li>선택지 및 분기 규칙 관리: 다음 노드, 결과 반영 태그, 비활성화 여부</li>
-            <li>결과 문구 템플릿 관리: 기본 주제 템플릿과 태그 기반 덮어쓰기 템플릿</li>
-            <li>공지/배너 관리: 공지 배너, 긴급 점검 문구, 진입별 배너 우선순위</li>
-          </ul>
+      <div className="panel soft">
+        <p className="overline">주제별 통계</p>
+        <div className="ops-table">
+          {topicMetrics.map((metric) => (
+            <div key={metric.topicId} className="ops-row">
+              <strong>{metric.label}</strong>
+              <span>진입 {metric.entries}</span>
+              <span>완주율 {metric.completionRate}%</span>
+              <span>저장률 {metric.saveRate}%</span>
+            </div>
+          ))}
         </div>
+      </div>
 
-        <div className="panel">
-          <p className="overline">주제별 통계</p>
-          <div className="ops-table">
-            {topicMetrics.map((metric) => (
-              <div key={metric.topicId} className="ops-row">
-                <strong>{metric.label}</strong>
-                <span>진입 {metric.entries}</span>
-                <span>완주율 {metric.completionRate}%</span>
-                <span>저장률 {metric.saveRate}%</span>
+      <div className="panel">
+        <p className="overline">질문 이탈 후보</p>
+        <div className="ops-table">
+          {dropoutCandidates.length === 0 ? (
+            <div className="ops-row">
+              <span>이탈 후보 데이터가 아직 없습니다.</span>
+            </div>
+          ) : (
+            dropoutCandidates.map((metric) => (
+              <div key={metric.nodeId} className="ops-row column">
+                <strong>{metric.prompt}</strong>
+                <span>
+                  {topicById(metric.topicId as TopicId).label} · 응답 {metric.answered} · 이탈 후보{" "}
+                  {metric.pendingDropouts} · 이탈률 {metric.dropoutRate}%
+                </span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="panel">
-          <p className="overline">질문 이탈 후보</p>
-          <div className="ops-table">
-            {questionMetrics
-              .filter((metric) => metric.pendingDropouts > 0)
-              .sort((a, b) => b.dropoutRate - a.dropoutRate)
-              .slice(0, 8)
-              .map((metric) => (
-                <div key={metric.nodeId} className="ops-row column">
-                  <strong>{metric.prompt}</strong>
-                  <span>
-                    {topicById(metric.topicId as TopicId).label} · 응답 {metric.answered} · 이탈 후보 {metric.pendingDropouts} · 이탈률 {metric.dropoutRate}%
-                  </span>
-                </div>
-              ))}
-          </div>
+            ))
+          )}
         </div>
       </div>
     </ScreenFrame>
@@ -1201,12 +1447,15 @@ function NotFoundPage() {
     <ScreenFrame
       eyebrow="404"
       title="요청한 화면을 찾을 수 없습니다."
-      subtitle="잘못된 경로이거나 공유 링크가 더 이상 유효하지 않을 수 있습니다."
-      footer={<Link className="button primary" to="/">홈으로</Link>}
+      subtitle="경로가 잘못되었거나 만료된 공유 링크일 수 있습니다."
+      footer={
+        <Link className="button primary" to="/">
+          <IconLabel icon="play">홈으로 이동</IconLabel>
+        </Link>
+      }
     >
       <div className="panel warning-panel">
-        <p className="overline">안내</p>
-        <p>서비스에서는 잘못된 공유 링크, 만료 링크, 비활성화 링크를 구분해 안내하는 것이 좋습니다.</p>
+        <IconLabel icon="warning">링크 상태를 확인한 뒤 다시 시도해 주세요.</IconLabel>
       </div>
     </ScreenFrame>
   );
