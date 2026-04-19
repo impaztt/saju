@@ -18,6 +18,7 @@ import {
   type PersistedAppState
 } from "../lib/storage";
 import type {
+  ConsultationMode,
   ConsultationResult,
   ConsultationSession,
   NetworkStatus,
@@ -41,7 +42,11 @@ function now() {
   return new Date().toISOString();
 }
 
-function createSession(profile: UserProfile, topicId: TopicId): ConsultationSession {
+function createSession(
+  profile: UserProfile,
+  topicId: TopicId,
+  consultMode: ConsultationMode
+): ConsultationSession {
   const flow = FLOW_MAP[topicId];
   const timestamp = now();
 
@@ -50,6 +55,7 @@ function createSession(profile: UserProfile, topicId: TopicId): ConsultationSess
     userId: LOCAL_USER_ID,
     profileSnapshot: profile,
     topicId,
+    consultMode,
     flowVersion: flow.version,
     status: "draft",
     currentNodeId: flow.startNodeId,
@@ -64,6 +70,7 @@ function createSession(profile: UserProfile, topicId: TopicId): ConsultationSess
 interface AppState {
   acceptedNotice: boolean;
   profile: UserProfile;
+  consultMode: ConsultationMode;
   networkStatus: NetworkStatus;
   activeSessionId: string | null;
   sessions: ConsultationSession[];
@@ -73,10 +80,15 @@ interface AppState {
   lastError?: string;
   setAcceptedNotice: (value: boolean) => void;
   updateProfile: (profile: UserProfile) => void;
+  setConsultMode: (mode: ConsultationMode) => void;
   setNetworkStatus: (status: NetworkStatus) => void;
   clearError: () => void;
   dismissBanner: (id: string) => void;
-  startSession: (topicId: TopicId, forceRestart?: boolean) => ConsultationSession;
+  startSession: (
+    topicId: TopicId,
+    forceRestart?: boolean,
+    mode?: ConsultationMode
+  ) => ConsultationSession;
   resumeSession: (sessionId: string) => void;
   submitAnswer: (sessionId: string, nodeId: string, optionId: string) => ConsultationSession | null;
   goBack: (sessionId: string) => ConsultationSession | null;
@@ -92,6 +104,7 @@ interface AppState {
 function toPersistedState(state: AppState): PersistedAppState {
   return {
     acceptedNotice: state.acceptedNotice,
+    consultMode: state.consultMode,
     profile: state.profile,
     sessions: state.sessions,
     results: state.results,
@@ -122,6 +135,7 @@ export const useAppStore = create<AppState>((set, get) => {
   return {
     acceptedNotice: persisted.acceptedNotice ?? false,
     profile: persisted.profile ?? EMPTY_PROFILE,
+    consultMode: persisted.consultMode ?? "quick",
     networkStatus:
       typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "online",
     activeSessionId: initialSessions[0]?.id ?? null,
@@ -138,6 +152,9 @@ export const useAppStore = create<AppState>((set, get) => {
       set({ profile, lastError: undefined });
       persist();
     },
+    setConsultMode: (consultMode) => {
+      set({ consultMode, lastError: undefined });
+    },
     setNetworkStatus: (status) => {
       set({ networkStatus: status });
     },
@@ -152,14 +169,16 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
       persist();
     },
-    startSession: (topicId, forceRestart = false) => {
+    startSession: (topicId, forceRestart = false, mode) => {
       const state = get();
+      const selectedMode = mode ?? state.consultMode;
       const reusable = !forceRestart
         ? [...state.sessions]
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
             .find(
               (session) =>
                 session.topicId === topicId &&
+                session.consultMode === selectedMode &&
                 ["draft", "review", "loading"].includes(session.status) &&
                 session.compatibility !== "outdated"
             )
@@ -170,7 +189,7 @@ export const useAppStore = create<AppState>((set, get) => {
         return reusable;
       }
 
-      const session = createSession(state.profile, topicId);
+      const session = createSession(state.profile, topicId, selectedMode);
       set((current) => ({
         sessions: [session, ...current.sessions],
         activeSessionId: session.id,
@@ -409,6 +428,7 @@ export const useAppStore = create<AppState>((set, get) => {
       set({
         acceptedNotice: false,
         profile: EMPTY_PROFILE,
+        consultMode: "quick",
         networkStatus:
           typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "online",
         activeSessionId: null,

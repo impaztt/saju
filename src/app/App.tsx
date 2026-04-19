@@ -19,6 +19,7 @@ import { computeQuestionMetrics, computeTopicMetrics } from "../lib/ops";
 import { isShareExpired } from "../lib/share";
 import { useAppStore } from "../store/useAppStore";
 import type {
+  ConsultationMode,
   ConsultationResult,
   ConsultationSession,
   TopicDefinition,
@@ -58,6 +59,24 @@ function formatDateTime(value?: string) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function modeLabel(mode: ConsultationMode) {
+  return mode === "focused" ? "집중해서 보기" : "간단하게 보기";
+}
+
+function modeQuestionRange(mode: ConsultationMode) {
+  return mode === "focused" ? "18~22문항" : "5~8문항";
+}
+
+function modeEstimatedMinutes(topic: TopicDefinition, mode: ConsultationMode) {
+  return mode === "focused" ? topic.estimatedMinutes + 6 : topic.estimatedMinutes;
+}
+
+function modeGuide(mode: ConsultationMode) {
+  return mode === "focused"
+    ? "현재 상황, 반복 패턴, 행동 제약까지 깊게 묻고 해석합니다."
+    : "핵심 흐름과 즉시 실행 포인트를 빠르게 정리합니다.";
 }
 
 function genderLabel(value: UserProfile["gender"]) {
@@ -391,18 +410,425 @@ function ScreenFrame({
   );
 }
 
+type ParsedResultSection = {
+  title: string;
+  body: string;
+};
+
+type ParsedResultCard = ConsultationResult["cards"][number] & {
+  titleText: string;
+  sections: ParsedResultSection[];
+};
+
+type ResultMetric = {
+  label: string;
+  value: number;
+  caption: string;
+  icon: IconName;
+};
+
+type ResultActionItem = {
+  label: string;
+  text: string;
+};
+
+const TAG_PREFIX_LABELS: Record<string, string> = {
+  topic: "주제",
+  stage: "관계 단계",
+  state: "상태 신호",
+  consult: "상담 포커스",
+  romance: "연애",
+  reunion: "재회",
+  marriage: "결혼",
+  chemistry: "상대 심리",
+  relationships: "인간관계",
+  family: "가족",
+  career: "커리어",
+  money: "재정",
+  year: "연간 흐름",
+  mind: "마음"
+};
+
+const RESULT_CARD_ICON_MAP: Record<ConsultationResult["cards"][number]["key"], IconName> = {
+  summary: "spark",
+  currentFlow: "chart",
+  self: "profile",
+  other: "network",
+  structure: "notice",
+  nearTerm: "clock",
+  do: "check",
+  dont: "warning",
+  oneLine: "spark",
+  followUp: "link"
+};
+
+function normalizeCardTitle(title: string) {
+  return title.replace(/^\d+\.\s*/, "").trim();
+}
+
+function parseResultCardSections(body: string) {
+  const rows = body.replace(/\r/g, "").split("\n");
+  const sections: ParsedResultSection[] = [];
+  let currentTitle = "";
+  let currentBody: string[] = [];
+
+  const flush = () => {
+    const joined = currentBody.join("\n").trim();
+    if (!joined) {
+      return;
+    }
+    sections.push({
+      title: currentTitle || "핵심 포인트",
+      body: joined
+    });
+  };
+
+  rows.forEach((row) => {
+    const line = row.trim();
+    if (!line) {
+      return;
+    }
+    const match = line.match(/^\[(.+)\]$/);
+    if (match) {
+      flush();
+      currentTitle = match[1].trim();
+      currentBody = [];
+      return;
+    }
+    currentBody.push(line);
+  });
+  flush();
+
+  if (sections.length > 0) {
+    return sections;
+  }
+
+  return [
+    {
+      title: "핵심 포인트",
+      body: body.trim()
+    }
+  ];
+}
+
+function splitBodySentences(body: string) {
+  return body
+    .replace(/\r/g, "")
+    .split("\n")
+    .flatMap((line) => line.split(/[.!?]\s+/))
+    .map((line) => line.replace(/\.$/, "").trim())
+    .filter(Boolean);
+}
+
+function toListItems(body: string) {
+  const lines = body
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean);
+
+  if (lines.length > 1) {
+    return lines;
+  }
+
+  return splitBodySentences(body);
+}
+
+function parseResultCards(cards: ConsultationResult["cards"]): ParsedResultCard[] {
+  return cards.map((card) => ({
+    ...card,
+    titleText: normalizeCardTitle(card.title),
+    sections: parseResultCardSections(card.body)
+  }));
+}
+
+function buildTagBreakdown(tags: string[]) {
+  if (tags.length === 0) {
+    return [];
+  }
+
+  const counts = tags.reduce<Record<string, number>>((acc, tag) => {
+    const prefix = tag.split(".")[0];
+    acc[prefix] = (acc[prefix] ?? 0) + 1;
+    return acc;
+  }, {});
+  const total = tags.length;
+
+  return Object.entries(counts)
+    .map(([key, count]) => ({
+      key,
+      label: TAG_PREFIX_LABELS[key] ?? key,
+      count,
+      ratio: Math.round((count / total) * 100)
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+}
+
+function profileCompleteness(profile: UserProfile) {
+  if (!profile.birthDate) {
+    return 42;
+  }
+  if (profile.birthTimeUnknown || !profile.birthTime) {
+    return 76;
+  }
+  return 92;
+}
+
+function buildResultMetrics(result: ConsultationResult, session?: ConsultationSession): ResultMetric[] {
+  const responseCount = session?.responses.length ?? 0;
+  const profileScore = session ? profileCompleteness(session.profileSnapshot) : 72;
+  const signalScore = Math.min(100, 52 + Math.min(result.tags.length, 10) * 5);
+  const trailScore = responseCount === 0 ? 0 : Math.min(100, 34 + Math.min(responseCount, 8) * 8);
+
+  return [
+    {
+      label: "개인화 정밀도",
+      value: profileScore,
+      caption: "기본 정보 완성도 기반",
+      icon: "profile"
+    },
+    {
+      label: "신호 밀도",
+      value: signalScore,
+      caption: `해석 태그 ${result.tags.length}개`,
+      icon: "chart"
+    },
+    {
+      label: "흐름 추적도",
+      value: trailScore,
+      caption: `답변 ${responseCount}개 반영`,
+      icon: "clock"
+    }
+  ];
+}
+
+function buildActionItems(card: ParsedResultCard | undefined, limit = 4): ResultActionItem[] {
+  if (!card) {
+    return [];
+  }
+
+  return card.sections
+    .flatMap((section) => {
+      const lineItems = toListItems(section.body);
+      return lineItems.map((line) => ({
+        label: section.title,
+        text: line
+      }));
+    })
+    .slice(0, limit);
+}
+
+function sourceLabel(source: ConsultationResult["generationSource"]) {
+  switch (source) {
+    case "cloud":
+      return "클라우드";
+    case "fallback":
+      return "폴백";
+    default:
+      return "로컬";
+  }
+}
+
+function ResultReportVisuals({
+  result,
+  session
+}: {
+  result: ConsultationResult;
+  session?: ConsultationSession;
+}) {
+  const parsedCards = useMemo(() => parseResultCards(result.cards), [result.cards]);
+  const tagBreakdown = useMemo(() => buildTagBreakdown(result.tags), [result.tags]);
+  const metrics = useMemo(() => buildResultMetrics(result, session), [result, session]);
+  const doItems = useMemo(
+    () => buildActionItems(parsedCards.find((card) => card.key === "do")),
+    [parsedCards]
+  );
+  const dontItems = useMemo(
+    () => buildActionItems(parsedCards.find((card) => card.key === "dont")),
+    [parsedCards]
+  );
+  const nextItems = useMemo(() => {
+    if (result.recommendedQuestions.length > 0) {
+      return result.recommendedQuestions.slice(0, 4).map((question) => ({
+        label: "추가 질문",
+        text: question
+      }));
+    }
+    return buildActionItems(parsedCards.find((card) => card.key === "followUp"));
+  }, [parsedCards, result.recommendedQuestions]);
+  const trailItems = useMemo(() => {
+    if (!session || session.responses.length === 0) {
+      return [];
+    }
+    const flow = FLOW_MAP[session.topicId];
+    return session.responses.map((response, index) => ({
+      step: index + 1,
+      prompt: getNode(flow, response.nodeId)?.prompt ?? "질문",
+      answer: response.label
+    }));
+  }, [session]);
+
+  return (
+    <>
+      <section className="panel result-visual-grid">
+        <header className="result-visual-head">
+          <p className="overline">리포트 대시보드</p>
+          <h3>{result.summary}</h3>
+        </header>
+        <div className="result-metric-grid">
+          {metrics.map((metric) => (
+            <article key={metric.label} className="result-metric-card">
+              <p className="metric-title">
+                <IconLabel icon={metric.icon}>{metric.label}</IconLabel>
+              </p>
+              <p className="metric-value">{metric.value}%</p>
+              <p className="metric-caption">{metric.caption}</p>
+              <div className="metric-track" aria-hidden="true">
+                <span style={{ width: `${metric.value}%` }} />
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {tagBreakdown.length > 0 ? (
+        <section className="panel result-signal-panel">
+          <header className="result-visual-head compact">
+            <p className="overline">신호 분포</p>
+            <h3>응답 태그 기반 해석 비중</h3>
+          </header>
+          <div className="signal-table">
+            {tagBreakdown.map((item) => (
+              <div key={item.key} className="signal-row">
+                <div className="signal-label">
+                  <strong>{item.label}</strong>
+                  <small>{item.count}개</small>
+                </div>
+                <div className="signal-bar" aria-hidden="true">
+                  <span style={{ width: `${item.ratio}%` }} />
+                </div>
+                <span className="signal-ratio">{item.ratio}%</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {trailItems.length > 0 ? (
+        <section className="panel result-journey-panel">
+          <header className="result-visual-head compact">
+            <p className="overline">질문 여정</p>
+            <h3>리포트가 만들어진 답변 흐름</h3>
+          </header>
+          <ol className="result-journey-list">
+            {trailItems.map((item) => (
+              <li key={`${item.step}-${item.prompt}`} className="journey-item">
+                <span className="journey-step">{item.step}</span>
+                <div className="journey-main">
+                  <p className="journey-prompt">{item.prompt}</p>
+                  <p className="journey-answer">{item.answer}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
+      <section className="panel result-action-panel">
+        <header className="result-visual-head compact">
+          <p className="overline">전략 보드</p>
+          <h3>행동 / 주의 / 후속 탐색</h3>
+        </header>
+        <div className="result-action-grid">
+          <article className="result-action-column do">
+            <p className="result-action-head">
+              <UiIcon name="check" />
+              <span>지금 할 행동</span>
+            </p>
+            <ul className="action-list">
+              {doItems.map((item, index) => (
+                <li key={item.text + index} className="action-item">
+                  <strong>{item.label}</strong>
+                  <span>{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+          <article className="result-action-column dont">
+            <p className="result-action-head">
+              <UiIcon name="warning" />
+              <span>피해야 할 패턴</span>
+            </p>
+            <ul className="action-list">
+              {dontItems.map((item, index) => (
+                <li key={item.text + index} className="action-item">
+                  <strong>{item.label}</strong>
+                  <span>{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+          <article className="result-action-column next">
+            <p className="result-action-head">
+              <UiIcon name="link" />
+              <span>다음 질문</span>
+            </p>
+            <ul className="action-list">
+              {nextItems.map((item, index) => (
+                <li key={item.text + index} className="action-item">
+                  <strong>{item.label}</strong>
+                  <span>{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+        </div>
+      </section>
+    </>
+  );
+}
+
 function ResultCards({ result }: { result: ConsultationResult }) {
+  const cards = useMemo(() => parseResultCards(result.cards), [result.cards]);
+
   return (
     <div className="result-cards">
-      {result.cards.map((card, index) => (
-        <article key={card.key} className="panel result-card">
-          <header className="result-card-header">
-            <span className="result-card-index">{index + 1}</span>
-            <p className="result-card-title">{card.title.replace(/^\d+\.\s*/, "")}</p>
-          </header>
-          <div className="card-body whitespace">{card.body}</div>
-        </article>
-      ))}
+      {cards.map((card, index) => {
+        const icon = RESULT_CARD_ICON_MAP[card.key];
+        return (
+          <article key={card.key} className="panel result-card" data-card-key={card.key}>
+            <header className="result-card-header">
+              <span className="result-card-index">{index + 1}</span>
+              <div className="result-card-title-wrap">
+                <p className="result-card-badge">
+                  <UiIcon name={icon} />
+                  <span>{card.titleText}</span>
+                </p>
+              </div>
+            </header>
+            <div className="result-card-sections">
+              {card.sections.map((section, sectionIndex) => {
+                const listItems = toListItems(section.body);
+                return (
+                  <section key={`${card.key}-${section.title}-${sectionIndex}`} className="result-card-section">
+                    <h4>{section.title}</h4>
+                    {listItems.length > 1 ? (
+                      <ul className="result-section-list">
+                        {listItems.map((line, lineIndex) => (
+                          <li key={line + lineIndex}>{line}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="card-body whitespace">{section.body}</p>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -752,6 +1178,8 @@ function ProfilePage() {
 function TopicHomePage() {
   const navigate = useNavigate();
   const profile = useAppStore((state) => state.profile);
+  const consultMode = useAppStore((state) => state.consultMode);
+  const setConsultMode = useAppStore((state) => state.setConsultMode);
   const sessions = useAppStore((state) => state.sessions);
   const startSession = useAppStore((state) => state.startSession);
   const latestOpenSession = useMemo(
@@ -768,7 +1196,7 @@ function TopicHomePage() {
   const profileReady = isProfileComplete(profile);
 
   const launchTopic = (topicId: TopicId, forceRestart = false) => {
-    const session = startSession(topicId, forceRestart);
+    const session = startSession(topicId, forceRestart, consultMode);
     navigate(sessionPath(session));
   };
 
@@ -789,11 +1217,39 @@ function TopicHomePage() {
         </Link>
       </div>
 
+      <section className="panel consultation-mode-panel">
+        <div className="consultation-mode-head">
+          <p className="overline">상담 깊이 선택</p>
+          <h3>{modeLabel(consultMode)}</h3>
+          <p>{modeGuide(consultMode)}</p>
+        </div>
+        <div className="consultation-mode-options">
+          {([
+            { id: "quick", title: "간단하게 보기", detail: "5~8문항 · 핵심 흐름 빠른 진단" },
+            { id: "focused", title: "집중해서 보기", detail: "18~22문항 · 맥락/패턴 심화 해석" }
+          ] as const).map((modeOption) => (
+            <button
+              key={modeOption.id}
+              className={
+                "consultation-mode-option" + (consultMode === modeOption.id ? " active" : "")
+              }
+              onClick={() => setConsultMode(modeOption.id)}
+            >
+              <strong>{modeOption.title}</strong>
+              <span>{modeOption.detail}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       {latestOpenSession ? (
         <Link className="panel continue-panel" to={sessionPath(latestOpenSession)}>
           <div>
             <p className="overline">진행 중 상담</p>
-            <h3>{topicById(latestOpenSession.topicId).label} 상담을 이어서 진행합니다.</h3>
+            <h3>
+              {topicById(latestOpenSession.topicId).label} ·{" "}
+              {modeLabel(latestOpenSession.consultMode)} 상담을 이어서 진행합니다.
+            </h3>
             <p>최근 업데이트 {formatDateTime(latestOpenSession.updatedAt)}</p>
           </div>
           <UiIcon name="arrowRight" />
@@ -815,7 +1271,9 @@ function TopicHomePage() {
               </div>
             </div>
             <div className="topic-home-meta">
-              <span>{topic.estimatedMinutes}분</span>
+              <span>
+                {modeQuestionRange(consultMode)} · 약 {modeEstimatedMinutes(topic, consultMode)}분
+              </span>
               <UiIcon name="arrowRight" />
             </div>
           </button>
@@ -861,7 +1319,7 @@ function SessionPage() {
             <button
               className="button primary"
               onClick={() => {
-                const next = startSession(session.topicId, true);
+                const next = startSession(session.topicId, true, session.consultMode);
                 navigate(sessionPath(next), { replace: true });
               }}
             >
@@ -920,7 +1378,7 @@ function SessionPage() {
     >
       <div className="panel soft session-progress-panel">
         <div className="progress-caption">
-          <span>진행 단계</span>
+          <span>{modeLabel(session.consultMode)} · 진행 단계</span>
           <span>
             {currentStep}/{flow.nodes.length} · {progress}%
           </span>
@@ -1157,15 +1615,16 @@ function ResultPage() {
         </div>
       }
     >
-      <div className="panel result-summary">
-        <div className="badge-row">
-          <span className="badge">{topic.label}</span>
-          <span className="badge">{result.generationSource}</span>
-          {session.saved ? <span className="badge">저장됨</span> : null}
+        <div className="panel result-summary">
+          <div className="badge-row">
+            <span className="badge">{topic.label}</span>
+            <span className="badge">{modeLabel(session.consultMode)}</span>
+            <span className="badge">{sourceLabel(result.generationSource)}</span>
+            {session.saved ? <span className="badge">저장됨</span> : null}
+          </div>
+          <p className="muted">생성 시각 {formatDateTime(result.generatedAt)}</p>
+          {result.accuracyNote ? <p className="accuracy-note">{result.accuracyNote}</p> : null}
         </div>
-        <p className="muted">생성 시각 {formatDateTime(result.generatedAt)}</p>
-        {result.accuracyNote ? <p className="accuracy-note">{result.accuracyNote}</p> : null}
-      </div>
 
       {copied ? (
         <div className="panel highlight">
@@ -1182,17 +1641,7 @@ function ResultPage() {
         </div>
       ) : null}
 
-      {result.recommendedQuestions.length > 0 ? (
-        <div className="panel soft">
-          <p className="overline">추가로 보면 좋은 질문</p>
-          <ul className="plain-list">
-            {result.recommendedQuestions.map((question) => (
-              <li key={question}>{question}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
+      <ResultReportVisuals result={result} session={session} />
       <ResultCards result={result} />
     </ScreenFrame>
   );
@@ -1249,8 +1698,10 @@ function SharedPage() {
   const { token } = useParams();
   const shares = useAppStore((state) => state.shares);
   const results = useAppStore((state) => state.results);
+  const sessions = useAppStore((state) => state.sessions);
   const share = shares.find((entry) => entry.token === token);
   const result = share ? results.find((entry) => entry.id === share.resultId) : undefined;
+  const session = result ? sessions.find((entry) => entry.resultId === result.id) : undefined;
 
   if (!share || !result || isShareExpired(share)) {
     return (
@@ -1282,6 +1733,7 @@ function SharedPage() {
         </Link>
       }
     >
+      <ResultReportVisuals result={result} session={session} />
       <ResultCards result={result} />
     </ScreenFrame>
   );

@@ -1,6 +1,6 @@
 import type { QuestionNode, QuestionOption, TopicFlow, TopicId } from "../types";
 
-const FLOW_VERSION = "2026.03.r2";
+const FLOW_VERSION = "2026.04.r1";
 
 function option(
   id: string,
@@ -40,10 +40,249 @@ function followupNodeId(topicId: TopicId, suffix: "focus" | "blocker" | "tone") 
   return topicId + ".deep-" + suffix;
 }
 
+function focusedNodeId(topicId: TopicId, suffix: string) {
+  return topicId + ".focused-" + suffix;
+}
+
+function focusedStartNodeId(topicId: TopicId) {
+  return focusedNodeId(topicId, "context");
+}
+
+function buildFocusedDeepNodes(topicId: TopicId) {
+  const contextId = focusedNodeId(topicId, "context");
+  const timingId = focusedNodeId(topicId, "timing");
+  const constraintId = focusedNodeId(topicId, "constraint");
+  const supportId = focusedNodeId(topicId, "support");
+  const boundaryId = focusedNodeId(topicId, "boundary");
+  const communicationId = focusedNodeId(topicId, "communication");
+  const energyId = focusedNodeId(topicId, "energy");
+  const riskId = focusedNodeId(topicId, "risk");
+  const patternId = focusedNodeId(topicId, "pattern");
+  const historyId = focusedNodeId(topicId, "history");
+  const outcomeId = focusedNodeId(topicId, "outcome");
+  const standardId = focusedNodeId(topicId, "standard");
+  const weekId = focusedNodeId(topicId, "week");
+  const monthId = focusedNodeId(topicId, "month");
+  const commitmentId = focusedNodeId(topicId, "commitment");
+  const confidenceId = focusedNodeId(topicId, "confidence");
+
+  return [
+    node(
+      topicId,
+      contextId,
+      "집중 상담: 지금 상황의 핵심 맥락은 어디에 가장 가깝나요?",
+      "해석의 깊이는 현재 맥락을 어떻게 정의하느냐에 따라 크게 달라집니다.",
+      [
+        option("people", "관계/사람 이슈가 중심", "상대와의 거리, 반응, 감정이 핵심이에요", timingId, ["consult.focused.context.people"]),
+        option("work", "일/진로 이슈가 중심", "선택과 책임, 성과 압박이 큽니다", timingId, ["consult.focused.context.work"]),
+        option("money", "돈/현실 조건이 중심", "결정의 핵심이 현실 제약에 있어요", timingId, ["consult.focused.context.money"]),
+        option("mind", "마음/회복이 중심", "판단보다 회복 리듬이 먼저 필요해요", timingId, ["consult.focused.context.mind"])
+      ],
+      ["consult.depth.focused"]
+    ),
+    node(
+      topicId,
+      timingId,
+      "변화 흐름을 확인하고 싶은 시간 범위는 어디인가요?",
+      "시기 기대치가 맞아야 실행 전략도 흔들리지 않습니다.",
+      [
+        option("short", "2주 이내", "아주 가까운 반응 변화를 보고 싶어요", constraintId, ["consult.focused.timing.short"]),
+        option("mid", "1~3개월", "가까운 중기 흐름을 보고 싶어요", constraintId, ["consult.focused.timing.mid"]),
+        option("long", "3~6개월", "큰 방향 전환 가능성이 궁금해요", constraintId, ["consult.focused.timing.long"]),
+        option("very-long", "6개월 이상", "긴 흐름에서 안정 구간을 보고 싶어요", constraintId, ["consult.focused.timing.very-long"])
+      ],
+      ["consult.focused.timing"]
+    ),
+    node(
+      topicId,
+      constraintId,
+      "지금 가장 크게 발목을 잡는 제약은 무엇인가요?",
+      "장애 요인을 정확히 잡아야 해석이 조언으로 연결됩니다.",
+      [
+        option("time", "시간이 부족함", "생각과 실행 사이 간격이 커요", supportId, ["consult.focused.constraint.time"]),
+        option("emotion", "감정 소모가 큼", "판단 전에 마음이 먼저 지칩니다", supportId, ["consult.focused.constraint.emotion"]),
+        option("external", "상대/외부 변수", "내가 통제하기 어려운 요인이 큽니다", supportId, ["consult.focused.constraint.external"]),
+        option("resource", "현실 자원 부족", "돈/체력/환경 조건이 걸립니다", supportId, ["consult.focused.constraint.resource"])
+      ],
+      ["consult.focused.constraint"]
+    ),
+    node(
+      topicId,
+      supportId,
+      "현재 버틸 때 실제로 도움이 되는 자원은 무엇인가요?",
+      "지금 가진 자원을 기반으로 실행 계획을 짜야 유지됩니다.",
+      [
+        option("person", "도와줄 사람", "상담/대화 상대가 있습니다", boundaryId, ["consult.focused.support.person"]),
+        option("routine", "기록/루틴", "흐름을 정리하는 습관이 있습니다", boundaryId, ["consult.focused.support.routine"]),
+        option("space", "거리/휴식", "잠깐 멈추는 공간을 만들 수 있어요", boundaryId, ["consult.focused.support.space"]),
+        option("none", "뚜렷한 자원 없음", "혼자 버티는 느낌이 큽니다", boundaryId, ["consult.focused.support.none"])
+      ],
+      ["consult.focused.support"]
+    ),
+    node(
+      topicId,
+      boundaryId,
+      "앞으로 반드시 지키고 싶은 경계선은 무엇인가요?",
+      "경계선이 있어야 해석이 감정 소모로만 끝나지 않습니다.",
+      [
+        option("respect", "존중 없는 말/태도는 금지", "관계든 일이든 기본 존중이 우선입니다", communicationId, ["consult.focused.boundary.respect"]),
+        option("consistency", "일관성 없는 행동은 금지", "말과 행동 차이가 반복되면 멈춰요", communicationId, ["consult.focused.boundary.consistency"]),
+        option("responsibility", "책임 회피는 금지", "금전/약속/역할 책임이 핵심입니다", communicationId, ["consult.focused.boundary.responsibility"]),
+        option("self", "내 기준 무시는 금지", "내 컨디션과 가치 훼손은 막고 싶어요", communicationId, ["consult.focused.boundary.self"])
+      ],
+      ["consult.focused.boundary"]
+    ),
+    node(
+      topicId,
+      communicationId,
+      "현재 소통 패턴은 어떤가요?",
+      "소통 방식은 흐름의 안정성과 예측 가능성을 보여줍니다.",
+      [
+        option("direct-clash", "솔직하지만 자주 충돌", "대화는 되지만 소모가 큽니다", energyId, ["consult.focused.communication.direct-clash"]),
+        option("avoid", "말을 아끼고 피함", "핵심 이야기가 자꾸 미뤄집니다", energyId, ["consult.focused.communication.avoid"]),
+        option("light", "연락은 있지만 얕음", "표면적 반응만 이어집니다", energyId, ["consult.focused.communication.light"]),
+        option("disconnect", "거의 단절", "연결 자체가 어렵습니다", energyId, ["consult.focused.communication.disconnect"])
+      ],
+      ["consult.focused.communication"]
+    ),
+    node(
+      topicId,
+      energyId,
+      "현재 당신의 에너지 상태는 어느 정도인가요?",
+      "현실적인 실행 계획은 현재 체력/정서 잔량을 기준으로 잡아야 합니다.",
+      [
+        option("enough", "여유가 있음", "실행을 밀어붙일 수 있어요", riskId, ["consult.focused.energy.enough"]),
+        option("tight", "간당간당함", "무리하면 쉽게 흔들립니다", riskId, ["consult.focused.energy.tight"]),
+        option("low", "많이 지침", "회복이 우선입니다", riskId, ["consult.focused.energy.low"]),
+        option("exhausted", "거의 소진", "판단보다 안정화가 먼저 필요해요", riskId, ["consult.focused.energy.exhausted"])
+      ],
+      ["consult.focused.energy"]
+    ),
+    node(
+      topicId,
+      riskId,
+      "가장 자주 반복되는 리스크 트리거는 무엇인가요?",
+      "리스크 패턴을 먼저 알아야 관계/진로/돈 해석이 안정됩니다.",
+      [
+        option("expectation", "기대-실망 반복", "초반 기대가 빠르게 꺾입니다", patternId, ["consult.focused.risk.expectation"]),
+        option("comparison", "비교와 불안", "주변 흐름과 비교할수록 흔들려요", patternId, ["consult.focused.risk.comparison"]),
+        option("pressure", "확답 압박", "서두르다 판단이 거칠어집니다", patternId, ["consult.focused.risk.pressure"]),
+        option("overread", "혼자 과해석", "상대/상황을 혼자 확정합니다", patternId, ["consult.focused.risk.overread"])
+      ],
+      ["consult.focused.risk"]
+    ),
+    node(
+      topicId,
+      patternId,
+      "이 패턴은 어느 정도 기간 반복되고 있나요?",
+      "기간이 길수록 접근 전략도 단기 대응에서 구조 조정으로 바뀝니다.",
+      [
+        option("new", "최근 시작", "아직 초기 패턴입니다", historyId, ["consult.focused.pattern.new"]),
+        option("three-months", "3개월 이상", "단기 문제를 넘어가고 있어요", historyId, ["consult.focused.pattern.three-months"]),
+        option("six-months", "6개월 이상", "중기 고착 가능성이 있습니다", historyId, ["consult.focused.pattern.six-months"]),
+        option("year", "1년 이상", "장기 구조로 굳은 느낌이에요", historyId, ["consult.focused.pattern.year"])
+      ],
+      ["consult.focused.pattern"]
+    ),
+    node(
+      topicId,
+      historyId,
+      "과거에도 비슷한 흐름이 반복된 적이 있나요?",
+      "재발 패턴이 있으면 해석보다 기준 재설계가 더 중요합니다.",
+      [
+        option("first", "이번이 거의 처음", "낯선 상황이라 판단이 어렵습니다", outcomeId, ["consult.focused.history.first"]),
+        option("sometimes", "가끔 반복", "주기적으로 비슷한 흐름이 옵니다", outcomeId, ["consult.focused.history.sometimes"]),
+        option("often", "자주 반복", "상황이 바뀌어도 결론이 비슷해요", outcomeId, ["consult.focused.history.often"]),
+        option("fixed", "거의 고정 패턴", "항상 같은 지점에서 막힙니다", outcomeId, ["consult.focused.history.fixed"])
+      ],
+      ["consult.focused.history"]
+    ),
+    node(
+      topicId,
+      outcomeId,
+      "이번 상담의 최종 목표는 무엇인가요?",
+      "목표가 명확할수록 결과 리포트의 행동 우선순위가 선명해집니다.",
+      [
+        option("maintain", "관계/상황 유지", "흔들림을 줄이고 싶어요", standardId, ["consult.focused.outcome.maintain"]),
+        option("clarify", "정리 기준 확보", "붙잡을지 놓을지 분명해지고 싶어요", standardId, ["consult.focused.outcome.clarify"]),
+        option("change", "실제 변화 실행", "행동으로 흐름을 바꾸고 싶어요", standardId, ["consult.focused.outcome.change"]),
+        option("recover", "마음/컨디션 회복", "소모를 줄이고 안정이 먼저 필요해요", standardId, ["consult.focused.outcome.recover"])
+      ],
+      ["consult.focused.outcome"]
+    ),
+    node(
+      topicId,
+      standardId,
+      "판단할 때 가장 중요한 최소 기준은 무엇인가요?",
+      "최소 기준이 분명해야 다음 질문과 실행이 현실적이 됩니다.",
+      [
+        option("consistency", "일관성", "말과 행동이 맞는지 봅니다", weekId, ["consult.focused.standard.consistency"]),
+        option("respect", "존중", "감정과 경계를 존중하는지 봅니다", weekId, ["consult.focused.standard.respect"]),
+        option("responsibility", "책임", "약속과 결과를 책임지는지 봅니다", weekId, ["consult.focused.standard.responsibility"]),
+        option("action", "실행력", "계획이 실제로 움직이는지 봅니다", weekId, ["consult.focused.standard.action"])
+      ],
+      ["consult.focused.standard"]
+    ),
+    node(
+      topicId,
+      weekId,
+      "앞으로 7일 안에 가장 먼저 실행할 액션은 무엇인가요?",
+      "짧은 기간 행동이 전체 흐름의 방향성을 만듭니다.",
+      [
+        option("talk", "대화 정리", "핵심 질문과 답을 짧게 확인합니다", monthId, ["consult.focused.week.talk"]),
+        option("experiment", "행동 하나 실험", "작은 변화로 반응을 봅니다", monthId, ["consult.focused.week.experiment"]),
+        option("pause", "거리/휴식 확보", "과열된 해석을 잠시 멈춥니다", monthId, ["consult.focused.week.pause"]),
+        option("observe", "기록/관찰", "패턴을 데이터처럼 모아 봅니다", monthId, ["consult.focused.week.observe"])
+      ],
+      ["consult.focused.week"]
+    ),
+    node(
+      topicId,
+      monthId,
+      "앞으로 30일 안에 점검할 핵심 과제는 무엇인가요?",
+      "중기 점검 항목이 있어야 집중 상담 결과가 유지됩니다.",
+      [
+        option("signal", "신호 변화 체크", "반응 주기와 일관성을 점검해요", commitmentId, ["consult.focused.month.signal"]),
+        option("reevaluate", "관계/상황 재평가", "기준에 맞는지 다시 판단해요", commitmentId, ["consult.focused.month.reevaluate"]),
+        option("plan", "현실 계획 보강", "진로/재정/일정 계획을 다듬어요", commitmentId, ["consult.focused.month.plan"]),
+        option("support", "도움 요청/연결", "혼자서 버티지 않도록 연결합니다", commitmentId, ["consult.focused.month.support"])
+      ],
+      ["consult.focused.month"]
+    ),
+    node(
+      topicId,
+      commitmentId,
+      "이 실행 계획을 실제로 지킬 자신은 어느 정도인가요?",
+      "실행 가능성에 맞춰 조언 밀도를 조정합니다.",
+      [
+        option("high", "높음", "바로 실행 가능합니다", confidenceId, ["consult.focused.commitment.high"]),
+        option("mid", "보통", "절반 정도는 실행할 수 있어요", confidenceId, ["consult.focused.commitment.mid"]),
+        option("low", "낮음", "계획 조정이 더 필요해요", confidenceId, ["consult.focused.commitment.low"]),
+        option("reset", "재설계 필요", "지금 계획은 현실과 맞지 않아요", confidenceId, ["consult.focused.commitment.reset"])
+      ],
+      ["consult.focused.commitment"]
+    ),
+    node(
+      topicId,
+      confidenceId,
+      "지금 기준으로 보면 전체 흐름에 대한 확신은 어느 정도인가요?",
+      "마지막 점검으로 리포트의 해석 톤과 후속 질문을 세밀하게 맞춥니다.",
+      [
+        option("certain", "확신이 높아요", "핵심 판단이 분명해졌습니다", null, ["consult.focused.confidence.certain"]),
+        option("half", "절반 정도예요", "방향은 보이지만 더 확인이 필요해요", null, ["consult.focused.confidence.half"]),
+        option("shaky", "아직 흔들려요", "해석보다 기준 보강이 더 필요합니다", null, ["consult.focused.confidence.shaky"]),
+        option("followup", "추가 상담이 필요해요", "다음 단계 질문이 더 필요합니다", null, ["consult.focused.confidence.followup"])
+      ],
+      ["consult.focused.confidence"]
+    )
+  ];
+}
+
 function buildFollowupNodes(topicId: TopicId) {
   const focusId = followupNodeId(topicId, "focus");
   const blockerId = followupNodeId(topicId, "blocker");
   const toneId = followupNodeId(topicId, "tone");
+  const focusedStartId = focusedStartNodeId(topicId);
 
   return [
     node(
@@ -84,7 +323,27 @@ function buildFollowupNodes(topicId: TopicId) {
       ],
       ["consult.depth.tone"]
     )
-  ];
+  ].map((questionNode) => {
+    if (questionNode.id !== toneId) {
+      return questionNode;
+    }
+
+    return {
+      ...questionNode,
+      branchRules: [
+        {
+          id: "mode-focused",
+          when: [{ field: "session.consultMode", op: "equals" as const, value: "focused" }],
+          next: focusedStartId
+        },
+        {
+          id: "mode-quick",
+          when: [{ field: "session.consultMode", op: "equals" as const, value: "quick" }],
+          next: null
+        }
+      ]
+    };
+  });
 }
 
 function deepenFlow(flow: TopicFlow): TopicFlow {
@@ -106,7 +365,8 @@ function deepenFlow(flow: TopicFlow): TopicFlow {
               version: FLOW_VERSION
             }
       ),
-      ...buildFollowupNodes(flow.topicId)
+      ...buildFollowupNodes(flow.topicId),
+      ...buildFocusedDeepNodes(flow.topicId)
     ]
   };
 }

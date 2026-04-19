@@ -13,6 +13,7 @@ export type TopicId =
 export type BirthCalendar = "solar" | "lunar";
 export type Gender = "female" | "male" | "other";
 export type QuestionType = "single_select" | "binary" | "multi_select";
+export type ConsultationMode = "quick" | "focused";
 export type SessionStatus = "draft" | "review" | "loading" | "result" | "outdated";
 export type SessionCompatibility = "ok" | "warning" | "outdated";
 export type ShareStatus = "active" | "expired" | "disabled";
@@ -121,6 +122,7 @@ export interface ConsultationSession {
   userId: string;
   profileSnapshot: UserProfile;
   topicId: TopicId;
+  consultMode: ConsultationMode;
   flowVersion: string;
   status: SessionStatus;
   currentNodeId: string | null;

@@ -1,4 +1,5 @@
 import type {
+  ConsultationMode,
   ConsultationResult,
   ConsultationSession,
   ShareRecord,
@@ -9,6 +10,7 @@ const STORAGE_KEY = "interactive-saju-app/v1";
 
 export interface PersistedAppState {
   acceptedNotice: boolean;
+  consultMode: ConsultationMode;
   profile: UserProfile;
   sessions: ConsultationSession[];
   results: ConsultationResult[];

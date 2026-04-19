@@ -7,6 +7,7 @@ import {
 } from "../data/resultTemplates";
 import type {
   BranchCondition,
+  ConsultationMode,
   ConsultationResult,
   ConsultationSession,
   QuestionNode,
@@ -73,6 +74,10 @@ export function getProgressPercent(session: ConsultationSession) {
 }
 
 function getConditionValue(session: ConsultationSession, field: string) {
+  if (field === "session.consultMode") {
+    return session.consultMode;
+  }
+
   if (field === "tags") {
     return session.responses.flatMap((response) => response.tags);
   }
@@ -137,12 +142,21 @@ export function getSessionCompatibility(session: ConsultationSession): SessionCo
   return responsesStillValid && cursorStillValid ? "warning" : "outdated";
 }
 
-export function reconcileSession(session: ConsultationSession) {
-  const compatibility = getSessionCompatibility(session);
+function normalizeConsultMode(mode?: ConsultationMode) {
+  return mode === "focused" ? "focused" : "quick";
+}
 
-  if (compatibility === "outdated" && session.status !== "result") {
+export function reconcileSession(session: ConsultationSession) {
+  const consultMode = normalizeConsultMode(session.consultMode);
+  const normalizedSession: ConsultationSession = {
+    ...session,
+    consultMode
+  };
+  const compatibility = getSessionCompatibility(normalizedSession);
+
+  if (compatibility === "outdated" && normalizedSession.status !== "result") {
     return {
-      ...session,
+      ...normalizedSession,
       compatibility,
       status: "outdated" as const,
       currentNodeId: null
@@ -150,7 +164,7 @@ export function reconcileSession(session: ConsultationSession) {
   }
 
   return {
-    ...session,
+    ...normalizedSession,
     compatibility
   };
 }
@@ -401,6 +415,14 @@ function buildCards(
   const tone = pickLens(tags, TONE_LENSES, DEFAULT_TONE_LENS);
   const responseTrail = buildResponseTrail(session);
   const profileNote = buildProfileNote(session.profileSnapshot);
+  const modeSummary =
+    session.consultMode === "focused"
+      ? "집중해서 보기 모드로 생성되어 현재 상태, 맥락, 반복 패턴, 실행 전략을 더 깊게 반영했습니다."
+      : "간단하게 보기 모드로 생성되어 핵심 흐름과 즉시 행동 중심으로 빠르게 정리했습니다.";
+  const modeDetail =
+    session.consultMode === "focused"
+      ? "문항이 늘어난 만큼 결과 해석도 근거 신호와 맥락을 더 세분화해 구성했습니다."
+      : "짧은 문항 수에 맞춰 해석은 핵심 신호 중심으로 압축해 제공했습니다.";
 
   return [
     {
@@ -408,6 +430,7 @@ function buildCards(
       title: RESULT_CARD_TITLES.summary,
       body: [
         section("현재 진단", template.summary),
+        section("해석 모드", modeSummary),
         section("이번 상담의 초점", focus.label + " 중심으로 리포트를 정리했습니다. " + focus.detail),
         section("리포트 기준", tone.detail)
       ].join("\n\n")
@@ -444,6 +467,7 @@ function buildCards(
       title: RESULT_CARD_TITLES.structure,
       body: [
         section("문제 구조", template.structure),
+        section("모드별 해석 깊이", modeDetail),
         section("답변 요약", responseTrail),
         section("반복 패턴", blocker.structure)
       ].join("\n\n")
@@ -498,7 +522,11 @@ export function buildConsultationResult(
 ): ConsultationResult {
   const tags = unique(session.responses.flatMap((response) => response.tags));
   const { template, recommendedQuestions: templateQuestions } = resolveTemplate(session.topicId, tags);
-  const recommendedQuestions = unique([...templateQuestions, ...buildDynamicQuestions(tags)]).slice(0, 4);
+  const questionLimit = session.consultMode === "focused" ? 6 : 4;
+  const recommendedQuestions = unique([...templateQuestions, ...buildDynamicQuestions(tags)]).slice(
+    0,
+    questionLimit
+  );
 
   return {
     id: makeId("result"),
