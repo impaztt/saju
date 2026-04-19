@@ -9,7 +9,15 @@ import {
   resolveNextNodeId,
   reconcileSession
 } from "../lib/engine";
-import { isFirebaseConfigured } from "../lib/firebase";
+import {
+  ensureCloudUser,
+  isSupabaseConfigured,
+  loadCloudState,
+  saveCloudState,
+  signInWithEmailOtp,
+  signOutCloudAuth,
+  upsertCloudProfile
+} from "../lib/supabase";
 import { createShareRecord, isShareExpired } from "../lib/share";
 import {
   clearPersistedState,
@@ -29,6 +37,8 @@ import type {
 
 const LOCAL_USER_ID = "local-prototype-user";
 
+type CloudSyncStatus = "disabled" | "ready" | "syncing" | "error";
+
 export const EMPTY_PROFILE: UserProfile = {
   nickname: "",
   birthDate: "",
@@ -45,14 +55,15 @@ function now() {
 function createSession(
   profile: UserProfile,
   topicId: TopicId,
-  consultMode: ConsultationMode
+  consultMode: ConsultationMode,
+  userId: string
 ): ConsultationSession {
   const flow = FLOW_MAP[topicId];
   const timestamp = now();
 
   return {
     id: `session-${crypto.randomUUID()}`,
-    userId: LOCAL_USER_ID,
+    userId,
     profileSnapshot: profile,
     topicId,
     consultMode,
@@ -71,6 +82,9 @@ interface AppState {
   acceptedNotice: boolean;
   profile: UserProfile;
   consultMode: ConsultationMode;
+  cloudUserId: string | null;
+  cloudUserEmail: string | null;
+  cloudSyncStatus: CloudSyncStatus;
   networkStatus: NetworkStatus;
   activeSessionId: string | null;
   sessions: ConsultationSession[];
@@ -81,6 +95,10 @@ interface AppState {
   setAcceptedNotice: (value: boolean) => void;
   updateProfile: (profile: UserProfile) => void;
   setConsultMode: (mode: ConsultationMode) => void;
+  initializeCloud: () => Promise<void>;
+  syncCloudState: () => Promise<void>;
+  signInEmail: (email: string) => Promise<boolean>;
+  signOutCloud: () => Promise<void>;
   setNetworkStatus: (status: NetworkStatus) => void;
   clearError: () => void;
   dismissBanner: (id: string) => void;
@@ -128,14 +146,33 @@ const initialShares: ShareRecord[] = (persisted.shares ?? []).map((share) => {
 });
 
 export const useAppStore = create<AppState>((set, get) => {
+  const syncCloudSnapshot = (snapshot: PersistedAppState, userId: string | null) => {
+    if (!isSupabaseConfigured || !userId) {
+      return;
+    }
+
+    void saveCloudState(userId, snapshot).catch(() => {
+      set((state) => ({
+        cloudSyncStatus: "error",
+        lastError: state.lastError ?? "클라우드 동기화에 실패했습니다. 잠시 후 다시 시도해 주세요."
+      }));
+    });
+  };
+
   const persist = () => {
-    savePersistedState(toPersistedState(get()));
+    const state = get();
+    const snapshot = toPersistedState(state);
+    savePersistedState(snapshot);
+    syncCloudSnapshot(snapshot, state.cloudUserId);
   };
 
   return {
     acceptedNotice: persisted.acceptedNotice ?? false,
     profile: persisted.profile ?? EMPTY_PROFILE,
     consultMode: persisted.consultMode ?? "quick",
+    cloudUserId: null,
+    cloudUserEmail: null,
+    cloudSyncStatus: isSupabaseConfigured ? "syncing" : "disabled",
     networkStatus:
       typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "online",
     activeSessionId: initialSessions[0]?.id ?? null,
@@ -150,10 +187,119 @@ export const useAppStore = create<AppState>((set, get) => {
     },
     updateProfile: (profile) => {
       set({ profile, lastError: undefined });
+      const state = get();
+      if (state.cloudUserId) {
+        void upsertCloudProfile(state.cloudUserId, profile).catch(() => {
+          set({ cloudSyncStatus: "error" });
+        });
+      }
       persist();
     },
     setConsultMode: (consultMode) => {
       set({ consultMode, lastError: undefined });
+      persist();
+    },
+    initializeCloud: async () => {
+      if (!isSupabaseConfigured) {
+        set({ cloudSyncStatus: "disabled", cloudUserId: null, cloudUserEmail: null });
+        return;
+      }
+
+      try {
+        set({ cloudSyncStatus: "syncing" });
+        const user = await ensureCloudUser();
+
+        if (!user) {
+          set({
+            cloudSyncStatus: "error",
+            cloudUserId: null,
+            cloudUserEmail: null,
+            lastError: "Supabase 인증 세션을 만들지 못했습니다. 설정을 확인해 주세요."
+          });
+          return;
+        }
+
+        const remote = await loadCloudState(user.id);
+        set({
+          cloudUserId: user.id,
+          cloudUserEmail: user.email ?? null
+        });
+
+        if (remote) {
+          const sessions = (remote.sessions ?? []).map((session) => reconcileSession(session));
+          const shares: ShareRecord[] = (remote.shares ?? []).map((share) => {
+            if (isShareExpired(share)) {
+              return {
+                ...share,
+                status: (share.status === "disabled" ? "disabled" : "expired") as ShareRecord["status"]
+              };
+            }
+            return share;
+          });
+
+          set({
+            acceptedNotice: remote.acceptedNotice ?? false,
+            consultMode: remote.consultMode ?? "quick",
+            profile: remote.profile ?? EMPTY_PROFILE,
+            sessions,
+            results: remote.results ?? [],
+            shares,
+            dismissedBannerIds: remote.dismissedBannerIds ?? [],
+            activeSessionId: sessions[0]?.id ?? null,
+            cloudSyncStatus: "ready",
+            lastError: undefined
+          });
+          savePersistedState(toPersistedState(get()));
+          return;
+        }
+
+        await upsertCloudProfile(user.id, get().profile);
+        const snapshot = toPersistedState(get());
+        await saveCloudState(user.id, snapshot);
+        set({ cloudSyncStatus: "ready", lastError: undefined });
+      } catch {
+        set({
+          cloudSyncStatus: "error",
+          lastError: "Supabase 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+        });
+      }
+    },
+    syncCloudState: async () => {
+      const state = get();
+      if (!state.cloudUserId || !isSupabaseConfigured) {
+        return;
+      }
+
+      try {
+        set({ cloudSyncStatus: "syncing" });
+        await saveCloudState(state.cloudUserId, toPersistedState(state));
+        set({ cloudSyncStatus: "ready" });
+      } catch {
+        set({
+          cloudSyncStatus: "error",
+          lastError: "동기화에 실패했습니다. 네트워크 또는 Supabase 정책을 확인해 주세요."
+        });
+      }
+    },
+    signInEmail: async (email) => {
+      if (!isSupabaseConfigured) {
+        set({ lastError: "Supabase 환경 변수가 설정되지 않았습니다." });
+        return false;
+      }
+
+      const ok = await signInWithEmailOtp(email);
+      if (!ok) {
+        set({ lastError: "이메일 로그인 요청을 전송하지 못했습니다." });
+      }
+      return ok;
+    },
+    signOutCloud: async () => {
+      await signOutCloudAuth();
+      set({
+        cloudUserId: null,
+        cloudUserEmail: null,
+        cloudSyncStatus: isSupabaseConfigured ? "syncing" : "disabled"
+      });
     },
     setNetworkStatus: (status) => {
       set({ networkStatus: status });
@@ -189,7 +335,12 @@ export const useAppStore = create<AppState>((set, get) => {
         return reusable;
       }
 
-      const session = createSession(state.profile, topicId, selectedMode);
+      const session = createSession(
+        state.profile,
+        topicId,
+        selectedMode,
+        state.cloudUserId ?? LOCAL_USER_ID
+      );
       set((current) => ({
         sessions: [session, ...current.sessions],
         activeSessionId: session.id,
@@ -337,7 +488,9 @@ export const useAppStore = create<AppState>((set, get) => {
         const compatibility = getSessionCompatibility(target);
         const normalized = compatibility === "ok" ? target : { ...target, compatibility };
         const generationSource =
-          isFirebaseConfigured && state.networkStatus === "online" ? "cloud" : "local";
+          isSupabaseConfigured && Boolean(state.cloudUserId) && state.networkStatus === "online"
+            ? "cloud"
+            : "local";
         result = buildConsultationResult(normalized, generationSource);
       } catch {
         result = buildFallbackResult(target);
@@ -429,6 +582,9 @@ export const useAppStore = create<AppState>((set, get) => {
         acceptedNotice: false,
         profile: EMPTY_PROFILE,
         consultMode: "quick",
+        cloudUserId: get().cloudUserId,
+        cloudUserEmail: get().cloudUserEmail,
+        cloudSyncStatus: get().cloudUserId ? "ready" : isSupabaseConfigured ? "syncing" : "disabled",
         networkStatus:
           typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "online",
         activeSessionId: null,
@@ -438,6 +594,7 @@ export const useAppStore = create<AppState>((set, get) => {
         dismissedBannerIds: [],
         lastError: undefined
       });
+      persist();
     }
   };
 });

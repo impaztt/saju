@@ -43,7 +43,12 @@ export function getNode(flow: TopicFlow, nodeId: string | null) {
   return flow.nodes.find((candidate) => candidate.id === nodeId);
 }
 
-function getRemainingDepth(flow: TopicFlow, nodeId: string | null, seen = new Set<string>()): number {
+function getRemainingDepth(
+  session: ConsultationSession,
+  flow: TopicFlow,
+  nodeId: string | null,
+  seen = new Set<string>()
+): number {
   if (!nodeId || seen.has(nodeId)) {
     return 0;
   }
@@ -57,16 +62,21 @@ function getRemainingDepth(flow: TopicFlow, nodeId: string | null, seen = new Se
   const nextSeen = new Set(seen);
   nextSeen.add(nodeId);
 
-  const optionDepths: number[] = node.options.map((option) => getRemainingDepth(flow, option.next, nextSeen));
-  const branchDepths: number[] = node.branchRules?.map((rule) => getRemainingDepth(flow, rule.next, nextSeen)) ?? [];
+  const optionDepths: number[] = node.options.map((option) =>
+    getRemainingDepth(session, flow, option.next, nextSeen)
+  );
+  const matchedRule = node.branchRules?.find((rule) =>
+    rule.when.every((condition) => conditionMatches(session, condition))
+  );
+  const branchDepth = matchedRule ? getRemainingDepth(session, flow, matchedRule.next, nextSeen) : 0;
 
-  return 1 + Math.max(0, ...optionDepths, ...branchDepths);
+  return 1 + Math.max(0, ...optionDepths, branchDepth);
 }
 
 export function getProgressPercent(session: ConsultationSession) {
   const flow = getTopicFlow(session.topicId);
   const total = session.currentNodeId
-    ? Math.max(session.responses.length + getRemainingDepth(flow, session.currentNodeId), 1)
+    ? Math.max(session.responses.length + getRemainingDepth(session, flow, session.currentNodeId), 1)
     : Math.max(session.responses.length, 1);
   const current = session.currentNodeId ? session.responses.length + 1 : session.responses.length;
 

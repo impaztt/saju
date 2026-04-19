@@ -40,6 +40,10 @@ function followupNodeId(topicId: TopicId, suffix: "focus" | "blocker" | "tone") 
   return topicId + ".deep-" + suffix;
 }
 
+function quickNodeId(topicId: TopicId, suffix: "priority" | "timing" | "action" | "risk") {
+  return topicId + ".quick-" + suffix;
+}
+
 function focusedNodeId(topicId: TopicId, suffix: string) {
   return topicId + ".focused-" + suffix;
 }
@@ -58,13 +62,10 @@ function buildFocusedDeepNodes(topicId: TopicId) {
   const energyId = focusedNodeId(topicId, "energy");
   const riskId = focusedNodeId(topicId, "risk");
   const patternId = focusedNodeId(topicId, "pattern");
-  const historyId = focusedNodeId(topicId, "history");
   const outcomeId = focusedNodeId(topicId, "outcome");
   const standardId = focusedNodeId(topicId, "standard");
   const weekId = focusedNodeId(topicId, "week");
   const monthId = focusedNodeId(topicId, "month");
-  const commitmentId = focusedNodeId(topicId, "commitment");
-  const confidenceId = focusedNodeId(topicId, "confidence");
 
   return [
     node(
@@ -177,25 +178,12 @@ function buildFocusedDeepNodes(topicId: TopicId) {
       "이 패턴은 어느 정도 기간 반복되고 있나요?",
       "기간이 길수록 접근 전략도 단기 대응에서 구조 조정으로 바뀝니다.",
       [
-        option("new", "최근 시작", "아직 초기 패턴입니다", historyId, ["consult.focused.pattern.new"]),
-        option("three-months", "3개월 이상", "단기 문제를 넘어가고 있어요", historyId, ["consult.focused.pattern.three-months"]),
-        option("six-months", "6개월 이상", "중기 고착 가능성이 있습니다", historyId, ["consult.focused.pattern.six-months"]),
-        option("year", "1년 이상", "장기 구조로 굳은 느낌이에요", historyId, ["consult.focused.pattern.year"])
+        option("new", "최근 시작", "아직 초기 패턴입니다", outcomeId, ["consult.focused.pattern.new"]),
+        option("three-months", "3개월 이상", "단기 문제를 넘어가고 있어요", outcomeId, ["consult.focused.pattern.three-months"]),
+        option("six-months", "6개월 이상", "중기 고착 가능성이 있습니다", outcomeId, ["consult.focused.pattern.six-months"]),
+        option("year", "1년 이상", "장기 구조로 굳은 느낌이에요", outcomeId, ["consult.focused.pattern.year"])
       ],
       ["consult.focused.pattern"]
-    ),
-    node(
-      topicId,
-      historyId,
-      "과거에도 비슷한 흐름이 반복된 적이 있나요?",
-      "재발 패턴이 있으면 해석보다 기준 재설계가 더 중요합니다.",
-      [
-        option("first", "이번이 거의 처음", "낯선 상황이라 판단이 어렵습니다", outcomeId, ["consult.focused.history.first"]),
-        option("sometimes", "가끔 반복", "주기적으로 비슷한 흐름이 옵니다", outcomeId, ["consult.focused.history.sometimes"]),
-        option("often", "자주 반복", "상황이 바뀌어도 결론이 비슷해요", outcomeId, ["consult.focused.history.often"]),
-        option("fixed", "거의 고정 패턴", "항상 같은 지점에서 막힙니다", outcomeId, ["consult.focused.history.fixed"])
-      ],
-      ["consult.focused.history"]
     ),
     node(
       topicId,
@@ -242,38 +230,12 @@ function buildFocusedDeepNodes(topicId: TopicId) {
       "앞으로 30일 안에 점검할 핵심 과제는 무엇인가요?",
       "중기 점검 항목이 있어야 집중 상담 결과가 유지됩니다.",
       [
-        option("signal", "신호 변화 체크", "반응 주기와 일관성을 점검해요", commitmentId, ["consult.focused.month.signal"]),
-        option("reevaluate", "관계/상황 재평가", "기준에 맞는지 다시 판단해요", commitmentId, ["consult.focused.month.reevaluate"]),
-        option("plan", "현실 계획 보강", "진로/재정/일정 계획을 다듬어요", commitmentId, ["consult.focused.month.plan"]),
-        option("support", "도움 요청/연결", "혼자서 버티지 않도록 연결합니다", commitmentId, ["consult.focused.month.support"])
+        option("signal", "신호 변화 체크", "반응 주기와 일관성을 점검해요", null, ["consult.focused.month.signal"]),
+        option("reevaluate", "관계/상황 재평가", "기준에 맞는지 다시 판단해요", null, ["consult.focused.month.reevaluate"]),
+        option("plan", "현실 계획 보강", "진로/재정/일정 계획을 다듬어요", null, ["consult.focused.month.plan"]),
+        option("support", "도움 요청/연결", "혼자서 버티지 않도록 연결합니다", null, ["consult.focused.month.support"])
       ],
       ["consult.focused.month"]
-    ),
-    node(
-      topicId,
-      commitmentId,
-      "이 실행 계획을 실제로 지킬 자신은 어느 정도인가요?",
-      "실행 가능성에 맞춰 조언 밀도를 조정합니다.",
-      [
-        option("high", "높음", "바로 실행 가능합니다", confidenceId, ["consult.focused.commitment.high"]),
-        option("mid", "보통", "절반 정도는 실행할 수 있어요", confidenceId, ["consult.focused.commitment.mid"]),
-        option("low", "낮음", "계획 조정이 더 필요해요", confidenceId, ["consult.focused.commitment.low"]),
-        option("reset", "재설계 필요", "지금 계획은 현실과 맞지 않아요", confidenceId, ["consult.focused.commitment.reset"])
-      ],
-      ["consult.focused.commitment"]
-    ),
-    node(
-      topicId,
-      confidenceId,
-      "지금 기준으로 보면 전체 흐름에 대한 확신은 어느 정도인가요?",
-      "마지막 점검으로 리포트의 해석 톤과 후속 질문을 세밀하게 맞춥니다.",
-      [
-        option("certain", "확신이 높아요", "핵심 판단이 분명해졌습니다", null, ["consult.focused.confidence.certain"]),
-        option("half", "절반 정도예요", "방향은 보이지만 더 확인이 필요해요", null, ["consult.focused.confidence.half"]),
-        option("shaky", "아직 흔들려요", "해석보다 기준 보강이 더 필요합니다", null, ["consult.focused.confidence.shaky"]),
-        option("followup", "추가 상담이 필요해요", "다음 단계 질문이 더 필요합니다", null, ["consult.focused.confidence.followup"])
-      ],
-      ["consult.focused.confidence"]
     )
   ];
 }
@@ -282,6 +244,10 @@ function buildFollowupNodes(topicId: TopicId) {
   const focusId = followupNodeId(topicId, "focus");
   const blockerId = followupNodeId(topicId, "blocker");
   const toneId = followupNodeId(topicId, "tone");
+  const quickPriorityId = quickNodeId(topicId, "priority");
+  const quickTimingId = quickNodeId(topicId, "timing");
+  const quickActionId = quickNodeId(topicId, "action");
+  const quickRiskId = quickNodeId(topicId, "risk");
   const focusedStartId = focusedStartNodeId(topicId);
 
   return [
@@ -317,14 +283,66 @@ function buildFollowupNodes(topicId: TopicId) {
       "리포트는 어떤 방식으로 듣고 싶나요?",
       "같은 해석도 듣고 싶은 톤에 따라 정리 방식이 달라집니다.",
       [
-        option("direct", "직설적이고 선명하게", "좋고 싫음을 분명하게 듣고 싶어요", null, ["consult.tone.direct"]),
-        option("supportive", "마음 정리 중심으로", "부담을 덜고 감정을 정리하고 싶어요", null, ["consult.tone.supportive"]),
-        option("practical", "현실 조언 중심으로", "실행 순서와 행동 기준이 중요해요", null, ["consult.tone.practical"])
+        option("direct", "직설적이고 선명하게", "좋고 싫음을 분명하게 듣고 싶어요", quickPriorityId, ["consult.tone.direct"]),
+        option("supportive", "마음 정리 중심으로", "부담을 덜고 감정을 정리하고 싶어요", quickPriorityId, ["consult.tone.supportive"]),
+        option("practical", "현실 조언 중심으로", "실행 순서와 행동 기준이 중요해요", quickPriorityId, ["consult.tone.practical"])
       ],
       ["consult.depth.tone"]
+    ),
+    node(
+      topicId,
+      quickPriorityId,
+      "지금 가장 먼저 풀어야 할 우선순위는 무엇인가요?",
+      "핵심 우선순위를 정하면 짧은 리포트도 훨씬 선명해집니다.",
+      [
+        option("emotion", "감정 정리", "마음의 흔들림을 먼저 낮추고 싶어요", quickTimingId, ["consult.quick.priority.emotion"]),
+        option("decision", "판단 기준", "붙잡을지 놓을지 기준이 필요해요", quickTimingId, ["consult.quick.priority.decision"]),
+        option("communication", "대화/소통", "말을 어떻게 꺼낼지 정리하고 싶어요", quickTimingId, ["consult.quick.priority.communication"]),
+        option("action", "행동 실행", "현실적으로 무엇부터 할지 정하고 싶어요", quickTimingId, ["consult.quick.priority.action"])
+      ],
+      ["consult.quick.priority"]
+    ),
+    node(
+      topicId,
+      quickTimingId,
+      "언제쯤 변화를 기대하고 있나요?",
+      "시기 기대치를 맞춰야 실망과 조급함을 줄일 수 있습니다.",
+      [
+        option("immediate", "이번 주 안", "아주 빠른 반응 변화를 원해요", quickActionId, ["consult.quick.timing.immediate"]),
+        option("two-weeks", "2주 안", "짧은 관찰 구간이 필요해요", quickActionId, ["consult.quick.timing.two-weeks"]),
+        option("month", "한 달 안", "중기 흐름을 보고 판단하고 싶어요", quickActionId, ["consult.quick.timing.month"]),
+        option("flexible", "조급하지 않음", "속도보다 방향이 중요해요", quickActionId, ["consult.quick.timing.flexible"])
+      ],
+      ["consult.quick.timing"]
+    ),
+    node(
+      topicId,
+      quickActionId,
+      "이번 흐름에서 바로 실천할 행동은 무엇인가요?",
+      "실행 항목이 있어야 상담 결과가 현실에 연결됩니다.",
+      [
+        option("observe", "반응 관찰 기록", "하루 단위로 패턴을 기록할게요", quickRiskId, ["consult.quick.action.observe"]),
+        option("talk", "핵심 대화 시도", "짧고 분명한 대화를 시도할게요", quickRiskId, ["consult.quick.action.talk"]),
+        option("boundary", "경계선 재설정", "내 기준과 한계를 먼저 정할게요", quickRiskId, ["consult.quick.action.boundary"]),
+        option("pause", "과열 멈춤", "감정이 올라올 때 멈추고 정리할게요", quickRiskId, ["consult.quick.action.pause"])
+      ],
+      ["consult.quick.action"]
+    ),
+    node(
+      topicId,
+      quickRiskId,
+      "반드시 피하고 싶은 반복 패턴은 무엇인가요?",
+      "리스크를 먼저 정하면 같은 소모를 줄일 수 있습니다.",
+      [
+        option("impulse", "충동 반응", "감정이 올라올 때 즉시 반응하는 패턴", null, ["consult.quick.risk.impulse"]),
+        option("overread", "과해석", "상대 의도를 혼자 확정하는 패턴", null, ["consult.quick.risk.overread"]),
+        option("delay", "미루기", "결정과 대화를 계속 미루는 패턴", null, ["consult.quick.risk.delay"]),
+        option("overcommit", "무리한 몰입", "컨디션을 무시하고 버티는 패턴", null, ["consult.quick.risk.overcommit"])
+      ],
+      ["consult.quick.risk"]
     )
   ].map((questionNode) => {
-    if (questionNode.id !== toneId) {
+    if (questionNode.id !== quickRiskId) {
       return questionNode;
     }
 

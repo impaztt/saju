@@ -14,9 +14,9 @@ import { SIGNAL_TEMPLATES } from "../data/resultTemplates";
 import { FLOW_MAP } from "../data/questionFlows";
 import { TOPICS } from "../data/topics";
 import { getNode, getProgressPercent } from "../lib/engine";
-import { isFirebaseConfigured } from "../lib/firebase";
 import { computeQuestionMetrics, computeTopicMetrics } from "../lib/ops";
 import { isShareExpired } from "../lib/share";
+import { isSupabaseConfigured } from "../lib/supabase";
 import { useAppStore } from "../store/useAppStore";
 import type {
   ConsultationMode,
@@ -66,11 +66,11 @@ function modeLabel(mode: ConsultationMode) {
 }
 
 function modeQuestionRange(mode: ConsultationMode) {
-  return mode === "focused" ? "18~22문항" : "5~8문항";
+  return mode === "focused" ? "22문항" : "9문항";
 }
 
 function modeEstimatedMinutes(topic: TopicDefinition, mode: ConsultationMode) {
-  return mode === "focused" ? topic.estimatedMinutes + 6 : topic.estimatedMinutes;
+  return mode === "focused" ? topic.estimatedMinutes + 8 : topic.estimatedMinutes;
 }
 
 function modeGuide(mode: ConsultationMode) {
@@ -836,6 +836,7 @@ function ResultCards({ result }: { result: ConsultationResult }) {
 function AppRouter() {
   const navigate = useNavigate();
   const location = useLocation();
+  const initializeCloud = useAppStore((state) => state.initializeCloud);
   const networkStatus = useAppStore((state) => state.networkStatus);
   const setNetworkStatus = useAppStore((state) => state.setNetworkStatus);
   const lastError = useAppStore((state) => state.lastError);
@@ -847,6 +848,10 @@ function AppRouter() {
     }
     navigate("/", { replace: true });
   }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    void initializeCloud();
+  }, [initializeCloud]);
 
   useEffect(() => {
     const onOnline = () => setNetworkStatus("online");
@@ -907,9 +912,7 @@ export function App() {
 }
 
 function LandingPage() {
-  const navigate = useNavigate();
   const sessions = useAppStore((state) => state.sessions);
-  const startSession = useAppStore((state) => state.startSession);
   const acceptedNotice = useAppStore((state) => state.acceptedNotice);
   const latestOpenSession = useMemo(
     () =>
@@ -923,82 +926,30 @@ function LandingPage() {
     [sessions]
   );
   const latestTopic = latestOpenSession ? topicById(latestOpenSession.topicId) : null;
-  const featuredTopics = TOPICS.filter((topic) =>
-    ["romance", "reunion", "career", "mind"].includes(topic.id)
-  );
-  const savedSessions = sessions.filter((session) => session.saved).length;
-
-  const launchTopic = (topicId: TopicId) => {
-    const session = startSession(topicId);
-    navigate(sessionPath(session));
-  };
 
   return (
-    <ScreenFrame className="landing-screen" hideNav hideHeader title="온결 사주">
-      <section className="landing-hero">
-        <p className="landing-kicker">INTERACTIVE SAJU</p>
-        <h1>복잡한 고민을 짧고 선명하게 정리합니다.</h1>
-        <p>긴 해석 페이지 대신, 필요한 질문만 따라가면 카드형 결과를 확인할 수 있습니다.</p>
-      </section>
-
-      <section className="landing-stats" aria-label="서비스 정보">
-        <div className="stat-chip">
-          <IconLabel icon="clock">평균 5분 내 완료</IconLabel>
-        </div>
-        <div className="stat-chip">
-          <IconLabel icon="save">저장된 결과 {savedSessions}개</IconLabel>
-        </div>
-        <div className="stat-chip">
-          <IconLabel icon="share">링크 공유 가능</IconLabel>
-        </div>
-      </section>
-
-      <section className="landing-featured">
-        <p className="section-title">자주 선택하는 주제</p>
-        <div className="landing-topic-grid">
-          {featuredTopics.map((topic) => (
-            <button
-              key={topic.id}
-              className={"landing-topic-tile topic-tone-" + topic.id}
-              onClick={() => launchTopic(topic.id)}
-            >
-              <div className="landing-topic-head">
-                <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
-                <strong>{topic.label}</strong>
-              </div>
-              <p>{topic.shortBlurb}</p>
-              <span className="topic-meta">
-                {topic.estimatedMinutes}분
-                <UiIcon name="arrowRight" />
-              </span>
-            </button>
-          ))}
-        </div>
+    <ScreenFrame className="landing-screen" hideNav title="온결 사주" subtitle="주제별 질문을 통해 현재 심리 흐름을 저장하고, 다시 접속했을 때 오늘의 흐름처럼 이어서 분석합니다.">
+      <section className="panel soft landing-intro-panel">
+        <p className="overline">START</p>
+        <h3>시작하기를 누르면 주제 선택 후 상담이 바로 시작됩니다.</h3>
       </section>
 
       {latestOpenSession && latestTopic ? (
         <Link className="panel resume-panel" to={sessionPath(latestOpenSession)}>
           <div>
             <p className="overline">이어 하기</p>
-            <h3>{latestTopic.label} 상담을 이어서 진행합니다.</h3>
+            <h3>
+              {latestTopic.label} · {modeLabel(latestOpenSession.consultMode)} 상담을 이어서 진행합니다.
+            </h3>
             <p>최근 업데이트 {formatDateTime(latestOpenSession.updatedAt)}</p>
           </div>
           <UiIcon name="arrowRight" />
         </Link>
-      ) : (
-        <Link className="panel resume-panel" to={acceptedNotice ? "/topics" : "/notice"}>
-          <div>
-            <p className="overline">시작 전 확인</p>
-            <h3>해석 기준과 주의사항을 먼저 확인해 주세요.</h3>
-            <p>이용 안내를 읽은 뒤 바로 상담을 시작할 수 있습니다.</p>
-          </div>
-          <UiIcon name="arrowRight" />
-        </Link>
-      )}
+      ) : null}
 
       <div className="action-stack">
-        <Link className="button primary" to="/topics">
-          <IconLabel icon="play">전체 주제 보기</IconLabel>
+        <Link className="button primary" to={acceptedNotice ? "/topics" : "/notice"}>
+          <IconLabel icon="play">시작하기</IconLabel>
         </Link>
         <Link className="button ghost" to="/profile">
           <IconLabel icon="profile">프로필 설정</IconLabel>
@@ -1181,6 +1132,7 @@ function TopicHomePage() {
   const consultMode = useAppStore((state) => state.consultMode);
   const setConsultMode = useAppStore((state) => state.setConsultMode);
   const sessions = useAppStore((state) => state.sessions);
+  const results = useAppStore((state) => state.results);
   const startSession = useAppStore((state) => state.startSession);
   const latestOpenSession = useMemo(
     () =>
@@ -1194,6 +1146,42 @@ function TopicHomePage() {
     [sessions]
   );
   const profileReady = isProfileComplete(profile);
+  const latestResultByTopic = useMemo(() => {
+    const map = new Map<TopicId, ConsultationResult>();
+    const candidates = [...sessions]
+      .filter(
+        (session) =>
+          session.status === "result" &&
+          session.resultId &&
+          session.consultMode === consultMode &&
+          session.compatibility !== "outdated"
+      )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+    candidates.forEach((session) => {
+      if (!session.resultId || map.has(session.topicId)) {
+        return;
+      }
+      const result = results.find((entry) => entry.id === session.resultId);
+      if (result) {
+        map.set(session.topicId, result);
+      }
+    });
+
+    return map;
+  }, [consultMode, results, sessions]);
+  const restartableTopics = useMemo(
+    () =>
+      TOPICS.filter((topic) =>
+        sessions.some(
+          (session) =>
+            session.topicId === topic.id &&
+            session.consultMode === consultMode &&
+            session.compatibility !== "outdated"
+        )
+      ),
+    [consultMode, sessions]
+  );
 
   const launchTopic = (topicId: TopicId, forceRestart = false) => {
     const session = startSession(topicId, forceRestart, consultMode);
@@ -1225,8 +1213,8 @@ function TopicHomePage() {
         </div>
         <div className="consultation-mode-options">
           {([
-            { id: "quick", title: "간단하게 보기", detail: "5~8문항 · 핵심 흐름 빠른 진단" },
-            { id: "focused", title: "집중해서 보기", detail: "18~22문항 · 맥락/패턴 심화 해석" }
+            { id: "quick", title: "간단하게 보기", detail: "9문항 · 핵심 흐름 빠른 진단" },
+            { id: "focused", title: "집중해서 보기", detail: "22문항 · 맥락/패턴 심화 해석" }
           ] as const).map((modeOption) => (
             <button
               key={modeOption.id}
@@ -1268,6 +1256,11 @@ function TopicHomePage() {
               <div>
                 <strong>{topic.label}</strong>
                 <p>{topic.shortBlurb}</p>
+                {latestResultByTopic.has(topic.id) ? (
+                  <p className="today-fate-line">
+                    오늘의 흐름: {latestResultByTopic.get(topic.id)?.summary}
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="topic-home-meta">
@@ -1279,6 +1272,23 @@ function TopicHomePage() {
           </button>
         ))}
       </div>
+
+      {restartableTopics.length > 0 ? (
+        <div className="panel">
+          <p className="overline">주제별 초기화</p>
+          <div className="topic-reset-list">
+            {restartableTopics.map((topic) => (
+              <button
+                key={topic.id}
+                className="button ghost small"
+                onClick={() => launchTopic(topic.id, true)}
+              >
+                <IconLabel icon="trash">{topic.label} 초기화 후 다시 상담</IconLabel>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </ScreenFrame>
   );
 }
@@ -1350,6 +1360,7 @@ function SessionPage() {
   const progress = getProgressPercent(session);
   const topic = topicById(session.topicId);
   const currentStep = session.responses.length + 1;
+  const totalSteps = session.consultMode === "focused" ? 22 : 9;
 
   return (
     <ScreenFrame
@@ -1380,7 +1391,7 @@ function SessionPage() {
         <div className="progress-caption">
           <span>{modeLabel(session.consultMode)} · 진행 단계</span>
           <span>
-            {currentStep}/{flow.nodes.length} · {progress}%
+            {Math.min(currentStep, totalSteps)}/{totalSteps} · {progress}%
           </span>
         </div>
         <div className="progress-track">
@@ -1741,39 +1752,98 @@ function SharedPage() {
 
 function SettingsPage() {
   const networkStatus = useAppStore((state) => state.networkStatus);
+  const cloudSyncStatus = useAppStore((state) => state.cloudSyncStatus);
+  const cloudUserId = useAppStore((state) => state.cloudUserId);
+  const cloudUserEmail = useAppStore((state) => state.cloudUserEmail);
+  const signInEmail = useAppStore((state) => state.signInEmail);
+  const signOutCloud = useAppStore((state) => state.signOutCloud);
+  const syncCloudState = useAppStore((state) => state.syncCloudState);
   const sessions = useAppStore((state) => state.sessions);
   const results = useAppStore((state) => state.results);
   const shares = useAppStore((state) => state.shares);
   const disableShare = useAppStore((state) => state.disableShare);
   const deleteAllData = useAppStore((state) => state.deleteAllData);
+  const [email, setEmail] = useState("");
+
+  const cloudStateLabel =
+    cloudSyncStatus === "ready"
+      ? "동기화 준비됨"
+      : cloudSyncStatus === "syncing"
+        ? "동기화 중"
+        : cloudSyncStatus === "error"
+          ? "동기화 오류"
+          : "설정되지 않음";
 
   return (
     <ScreenFrame
       eyebrow="설정"
       title="데이터와 공유 링크를 관리합니다."
-      subtitle="로컬 상태, 네트워크, Firebase 연결 가능 여부를 함께 확인할 수 있습니다."
+      subtitle="네트워크, Supabase 연결 상태, 로그인 및 데이터 동기화를 함께 관리합니다."
     >
       <div className="info-grid settings-grid">
         <div className="panel soft">
-          <p className="overline">Firebase</p>
+          <p className="overline">Supabase</p>
           <h3>
             <IconLabel icon="cloud">
-              {isFirebaseConfigured ? "환경 변수 연결 가능" : "환경 변수 미설정"}
+              {isSupabaseConfigured ? cloudStateLabel : "환경 변수 미설정"}
             </IconLabel>
           </h3>
-          <p>Hosting/Auth/Firestore/Functions 기준 구조로 확장할 수 있습니다.</p>
+          <p>{cloudUserId ? `로그인 사용자 ${cloudUserEmail ?? "익명 계정"}` : "로그인 전 상태입니다."}</p>
+          {isSupabaseConfigured ? (
+            <div className="action-stack">
+              <button className="button secondary small" onClick={() => void syncCloudState()}>
+                <IconLabel icon="save">지금 동기화</IconLabel>
+              </button>
+              {cloudUserId ? (
+                <button className="button ghost small" onClick={() => void signOutCloud()}>
+                  <IconLabel icon="back">로그아웃</IconLabel>
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="panel soft">
           <p className="overline">네트워크</p>
           <h3>
             <IconLabel icon="network">{networkStatus === "online" ? "온라인" : "오프라인"}</IconLabel>
           </h3>
-          <p>오프라인 상태에서도 로컬 세션 복원과 결과 조회는 가능합니다.</p>
+          <p>오프라인 상태에서도 로컬 데이터는 유지되고, 온라인 복구 시 자동 동기화됩니다.</p>
         </div>
       </div>
 
+      {isSupabaseConfigured && !cloudUserId ? (
+        <div className="panel">
+          <p className="overline">이메일 로그인</p>
+          <div className="field">
+            <span>로그인 이메일</span>
+            <input
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="name@example.com"
+              type="email"
+            />
+          </div>
+          <div className="action-stack">
+            <button
+              className="button primary small"
+              onClick={async () => {
+                if (!email.trim()) {
+                  return;
+                }
+                const ok = await signInEmail(email.trim());
+                if (ok) {
+                  setEmail("");
+                }
+              }}
+            >
+              <IconLabel icon="link">로그인 링크 전송</IconLabel>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="panel">
-        <p className="overline">로컬 데이터 현황</p>
+        <p className="overline">저장 데이터 현황</p>
         <div className="metric-row">
           <span>세션 {sessions.length}</span>
           <span>결과 {results.length}</span>
@@ -1839,7 +1909,7 @@ function OpsPage() {
     <ScreenFrame
       eyebrow="운영 구조"
       title="운영 지표와 카탈로그 규모를 확인합니다."
-      subtitle="현재 화면은 로컬 프로토타입이며 동일한 구조를 Firestore/Functions로 확장할 수 있습니다."
+      subtitle="현재 화면은 로컬+Supabase 기반 프로토타입이며, 동일한 구조로 운영 확장할 수 있습니다."
     >
       <div className="panel">
         <p className="overline">요약 지표</p>

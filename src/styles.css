@@ -469,6 +469,12 @@ small,
   color: var(--ink-3);
 }
 
+.landing-intro-panel h3 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.45;
+}
+
 .landing-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -692,6 +698,13 @@ small,
   color: var(--ink-3);
 }
 
+.today-fate-line {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #2f67c9;
+}
+
 .topic-home-meta {
   display: inline-flex;
   align-items: center;
@@ -699,6 +712,12 @@ small,
   color: var(--ink-3);
   font-size: 12px;
   font-weight: 600;
+}
+
+.topic-reset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .session-progress-panel {
