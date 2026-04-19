@@ -360,6 +360,17 @@ small,
   background: var(--primary-strong);
 }
 
+.button.kakao {
+  color: #191600;
+  border-color: #fee500;
+  background: #fee500;
+}
+
+.button.kakao:hover {
+  border-color: #f2d900;
+  background: #f2d900;
+}
+
 .button.secondary {
   color: var(--primary-strong);
   border-color: #cde1ff;

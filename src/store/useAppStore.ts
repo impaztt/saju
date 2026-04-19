@@ -10,13 +10,16 @@ import {
   reconcileSession
 } from "../lib/engine";
 import {
+  detectCloudAuthProvider,
   ensureCloudUser,
   isSupabaseConfigured,
   loadCloudState,
   saveCloudState,
   signInWithEmailOtp,
+  signInWithKakaoOAuth,
   signOutCloudAuth,
-  upsertCloudProfile
+  upsertCloudProfile,
+  type CloudAuthProvider
 } from "../lib/supabase";
 import { createShareRecord, isShareExpired } from "../lib/share";
 import {
@@ -84,6 +87,7 @@ interface AppState {
   consultMode: ConsultationMode;
   cloudUserId: string | null;
   cloudUserEmail: string | null;
+  cloudAuthProvider: CloudAuthProvider | null;
   cloudSyncStatus: CloudSyncStatus;
   networkStatus: NetworkStatus;
   activeSessionId: string | null;
@@ -98,6 +102,7 @@ interface AppState {
   initializeCloud: () => Promise<void>;
   syncCloudState: () => Promise<void>;
   signInEmail: (email: string) => Promise<boolean>;
+  signInKakao: () => Promise<boolean>;
   signOutCloud: () => Promise<void>;
   setNetworkStatus: (status: NetworkStatus) => void;
   clearError: () => void;
@@ -172,6 +177,7 @@ export const useAppStore = create<AppState>((set, get) => {
     consultMode: persisted.consultMode ?? "quick",
     cloudUserId: null,
     cloudUserEmail: null,
+    cloudAuthProvider: null,
     cloudSyncStatus: isSupabaseConfigured ? "syncing" : "disabled",
     networkStatus:
       typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "online",
@@ -201,19 +207,26 @@ export const useAppStore = create<AppState>((set, get) => {
     },
     initializeCloud: async () => {
       if (!isSupabaseConfigured) {
-        set({ cloudSyncStatus: "disabled", cloudUserId: null, cloudUserEmail: null });
+        set({
+          cloudSyncStatus: "disabled",
+          cloudUserId: null,
+          cloudUserEmail: null,
+          cloudAuthProvider: null
+        });
         return;
       }
 
       try {
         set({ cloudSyncStatus: "syncing" });
         const user = await ensureCloudUser();
+        const authProvider = detectCloudAuthProvider(user);
 
         if (!user) {
           set({
             cloudSyncStatus: "error",
             cloudUserId: null,
             cloudUserEmail: null,
+            cloudAuthProvider: null,
             lastError: "Supabase 인증 세션을 만들지 못했습니다. 설정을 확인해 주세요."
           });
           return;
@@ -222,7 +235,8 @@ export const useAppStore = create<AppState>((set, get) => {
         const remote = await loadCloudState(user.id);
         set({
           cloudUserId: user.id,
-          cloudUserEmail: user.email ?? null
+          cloudUserEmail: user.email ?? null,
+          cloudAuthProvider: authProvider
         });
 
         if (remote) {
@@ -293,11 +307,24 @@ export const useAppStore = create<AppState>((set, get) => {
       }
       return ok;
     },
+    signInKakao: async () => {
+      if (!isSupabaseConfigured) {
+        set({ lastError: "Supabase 환경 변수가 설정되지 않았습니다." });
+        return false;
+      }
+
+      const ok = await signInWithKakaoOAuth();
+      if (!ok) {
+        set({ lastError: "카카오 로그인 요청을 시작하지 못했습니다." });
+      }
+      return ok;
+    },
     signOutCloud: async () => {
       await signOutCloudAuth();
       set({
         cloudUserId: null,
         cloudUserEmail: null,
+        cloudAuthProvider: null,
         cloudSyncStatus: isSupabaseConfigured ? "syncing" : "disabled"
       });
     },
@@ -584,6 +611,7 @@ export const useAppStore = create<AppState>((set, get) => {
         consultMode: "quick",
         cloudUserId: get().cloudUserId,
         cloudUserEmail: get().cloudUserEmail,
+        cloudAuthProvider: get().cloudAuthProvider,
         cloudSyncStatus: get().cloudUserId ? "ready" : isSupabaseConfigured ? "syncing" : "disabled",
         networkStatus:
           typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "online",

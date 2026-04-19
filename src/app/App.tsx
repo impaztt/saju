@@ -16,7 +16,7 @@ import { TOPICS } from "../data/topics";
 import { getNode, getProgressPercent } from "../lib/engine";
 import { computeQuestionMetrics, computeTopicMetrics } from "../lib/ops";
 import { isShareExpired } from "../lib/share";
-import { isSupabaseConfigured } from "../lib/supabase";
+import { isSupabaseConfigured, type CloudAuthProvider } from "../lib/supabase";
 import { useAppStore } from "../store/useAppStore";
 import type {
   ConsultationMode,
@@ -77,6 +77,21 @@ function modeGuide(mode: ConsultationMode) {
   return mode === "focused"
     ? "현재 상황, 반복 패턴, 행동 제약까지 깊게 묻고 해석합니다."
     : "핵심 흐름과 즉시 실행 포인트를 빠르게 정리합니다.";
+}
+
+function cloudAuthLabel(provider: CloudAuthProvider | null) {
+  switch (provider) {
+    case "kakao":
+      return "카카오";
+    case "email":
+      return "이메일";
+    case "anonymous":
+      return "익명";
+    case "other":
+      return "외부 제공자";
+    default:
+      return "미연결";
+  }
 }
 
 function genderLabel(value: UserProfile["gender"]) {
@@ -914,6 +929,8 @@ export function App() {
 function LandingPage() {
   const sessions = useAppStore((state) => state.sessions);
   const acceptedNotice = useAppStore((state) => state.acceptedNotice);
+  const cloudAuthProvider = useAppStore((state) => state.cloudAuthProvider);
+  const signInKakao = useAppStore((state) => state.signInKakao);
   const latestOpenSession = useMemo(
     () =>
       [...sessions]
@@ -948,6 +965,11 @@ function LandingPage() {
       ) : null}
 
       <div className="action-stack">
+        {isSupabaseConfigured && cloudAuthProvider !== "kakao" ? (
+          <button className="button kakao" onClick={() => void signInKakao()}>
+            <IconLabel icon="link">카카오 로그인</IconLabel>
+          </button>
+        ) : null}
         <Link className="button primary" to={acceptedNotice ? "/topics" : "/notice"}>
           <IconLabel icon="play">시작하기</IconLabel>
         </Link>
@@ -1755,7 +1777,9 @@ function SettingsPage() {
   const cloudSyncStatus = useAppStore((state) => state.cloudSyncStatus);
   const cloudUserId = useAppStore((state) => state.cloudUserId);
   const cloudUserEmail = useAppStore((state) => state.cloudUserEmail);
+  const cloudAuthProvider = useAppStore((state) => state.cloudAuthProvider);
   const signInEmail = useAppStore((state) => state.signInEmail);
+  const signInKakao = useAppStore((state) => state.signInKakao);
   const signOutCloud = useAppStore((state) => state.signOutCloud);
   const syncCloudState = useAppStore((state) => state.syncCloudState);
   const sessions = useAppStore((state) => state.sessions);
@@ -1773,6 +1797,12 @@ function SettingsPage() {
         : cloudSyncStatus === "error"
           ? "동기화 오류"
           : "설정되지 않음";
+  const canUpgradeLogin = !cloudUserId || cloudAuthProvider !== "kakao";
+  const cloudAccountText = cloudUserId
+    ? cloudAuthProvider === "anonymous"
+      ? "로그인 사용자 익명 계정 (카카오 로그인 권장)"
+      : `로그인 사용자 ${cloudAuthLabel(cloudAuthProvider)}${cloudUserEmail ? ` · ${cloudUserEmail}` : ""}`
+    : "로그인 전 상태입니다.";
 
   return (
     <ScreenFrame
@@ -1788,7 +1818,7 @@ function SettingsPage() {
               {isSupabaseConfigured ? cloudStateLabel : "환경 변수 미설정"}
             </IconLabel>
           </h3>
-          <p>{cloudUserId ? `로그인 사용자 ${cloudUserEmail ?? "익명 계정"}` : "로그인 전 상태입니다."}</p>
+          <p>{cloudAccountText}</p>
           {isSupabaseConfigured ? (
             <div className="action-stack">
               <button className="button secondary small" onClick={() => void syncCloudState()}>
@@ -1811,9 +1841,15 @@ function SettingsPage() {
         </div>
       </div>
 
-      {isSupabaseConfigured && !cloudUserId ? (
+      {isSupabaseConfigured && canUpgradeLogin ? (
         <div className="panel">
-          <p className="overline">이메일 로그인</p>
+          <p className="overline">로그인 전환</p>
+          <div className="action-stack">
+            <button className="button kakao" onClick={() => void signInKakao()}>
+              <IconLabel icon="link">카카오 로그인</IconLabel>
+            </button>
+          </div>
+          <p className="muted">또는 이메일 로그인 링크</p>
           <div className="field">
             <span>로그인 이메일</span>
             <input
@@ -1825,7 +1861,7 @@ function SettingsPage() {
           </div>
           <div className="action-stack">
             <button
-              className="button primary small"
+              className="button secondary small"
               onClick={async () => {
                 if (!email.trim()) {
                   return;

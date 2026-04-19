@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type User } from "@supabase/supabase-js";
 
 import type { UserProfile } from "../types";
 import type { PersistedAppState } from "./storage";
@@ -17,6 +17,47 @@ export const supabase = isSupabaseConfigured
       }
     })
   : undefined;
+
+export type CloudAuthProvider = "anonymous" | "email" | "kakao" | "other";
+
+function normalizeProviderName(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim().toLowerCase();
+}
+
+export function detectCloudAuthProvider(user: User | null): CloudAuthProvider | null {
+  if (!user) {
+    return null;
+  }
+
+  const anonymousFlag = (user as User & { is_anonymous?: boolean }).is_anonymous;
+  if (anonymousFlag) {
+    return "anonymous";
+  }
+
+  const appProvider = normalizeProviderName(user.app_metadata?.provider);
+  if (appProvider === "anonymous" || appProvider === "email" || appProvider === "kakao") {
+    return appProvider;
+  }
+
+  const identityProviders = (user.identities ?? [])
+    .map((identity) => normalizeProviderName(identity.provider))
+    .filter(Boolean);
+
+  if (identityProviders.includes("kakao")) {
+    return "kakao";
+  }
+  if (identityProviders.includes("email")) {
+    return "email";
+  }
+  if (identityProviders.includes("anonymous")) {
+    return "anonymous";
+  }
+
+  return "other";
+}
 
 export async function ensureCloudUser() {
   if (!supabase) {
@@ -46,6 +87,21 @@ export async function signInWithEmailOtp(email: string) {
     email,
     options: {
       emailRedirectTo: typeof window === "undefined" ? undefined : window.location.origin
+    }
+  });
+
+  return !response.error;
+}
+
+export async function signInWithKakaoOAuth() {
+  if (!supabase) {
+    return false;
+  }
+
+  const response = await supabase.auth.signInWithOAuth({
+    provider: "kakao",
+    options: {
+      redirectTo: typeof window === "undefined" ? undefined : window.location.origin
     }
   });
 
