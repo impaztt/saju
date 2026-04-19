@@ -1029,12 +1029,21 @@ function ProfilePage() {
     updateProfile(normalized);
     navigate("/topics");
   };
+  const profileBirth =
+    form.birthDate && form.birthCalendar
+      ? `${form.birthDate} · ${calendarLabel(form.birthCalendar)}`
+      : "생년월일 미입력";
+  const profileTime = form.birthDate
+    ? form.birthTimeUnknown
+      ? "출생시간 모름"
+      : form.birthTime || "출생시간 미입력"
+    : "출생시간 미입력";
 
   return (
     <ScreenFrame
       eyebrow="프로필"
-      title="상담에 반영할 기본 정보를 준비해 주세요."
-      subtitle="모든 항목은 선택입니다. 입력할수록 결과 카드가 더 구체적으로 바뀝니다."
+      title="프로필을 깔끔하게 정리하세요."
+      subtitle="입력할수록 해석 카드가 구체적으로 바뀝니다."
       footer={
         <div className="action-stack">
           <button className="button primary" onClick={submit}>
@@ -1046,14 +1055,36 @@ function ProfilePage() {
         </div>
       }
     >
-      <div className="panel soft">
-        <p className="overline">현재 입력 상태</p>
-        <p>{formatProfileSummary(form)}</p>
-      </div>
+      <section className="profile-hero">
+        <div className="profile-avatar-badge" aria-hidden="true">
+          <UiIcon name="profile" />
+        </div>
+        <div className="profile-hero-main">
+          <p className="overline">현재 입력 상태</p>
+          <h3>{form.nickname.trim() || "이름 미입력"}</h3>
+          <p>{formatProfileSummary(form)}</p>
+        </div>
+        <div className="profile-snapshot-grid">
+          <span className="profile-snapshot-chip">
+            <UiIcon name="notice" />
+            {profileBirth}
+          </span>
+          <span className="profile-snapshot-chip">
+            <UiIcon name="clock" />
+            {profileTime}
+          </span>
+          <span className="profile-snapshot-chip">
+            <UiIcon name="spark" />
+            {genderLabel(form.gender)}
+          </span>
+        </div>
+      </section>
 
       <div className="stack compact-stack">
         <label className="field">
-          <span>닉네임</span>
+          <span>
+            <IconLabel icon="profile">닉네임</IconLabel>
+          </span>
           <input
             placeholder="상담에서 사용할 이름"
             value={form.nickname}
@@ -1065,7 +1096,9 @@ function ProfilePage() {
 
         <div className="info-grid profile-grid">
           <label className="field">
-            <span>생년월일 (선택)</span>
+            <span>
+              <IconLabel icon="notice">생년월일</IconLabel>
+            </span>
             <input
               type="date"
               value={form.birthDate}
@@ -1076,7 +1109,9 @@ function ProfilePage() {
           </label>
 
           <label className="field">
-            <span>출생시간 (선택)</span>
+            <span>
+              <IconLabel icon="clock">출생시간</IconLabel>
+            </span>
             <input
               type="time"
               value={form.birthTime}
@@ -1086,6 +1121,34 @@ function ProfilePage() {
               }
             />
           </label>
+        </div>
+
+        <div className="field">
+          <span>
+            <IconLabel icon="chart">달력 기준</IconLabel>
+          </span>
+          <div className="segmented-control">
+            {([
+              { label: "양력", value: "solar" },
+              { label: "음력", value: "lunar" }
+            ] as const).map((calendarOption) => (
+              <button
+                key={calendarOption.value}
+                className={
+                  "segment-button" +
+                  (form.birthCalendar === calendarOption.value ? " active" : "")
+                }
+                onClick={() =>
+                  setForm((current) => ({
+                    ...current,
+                    birthCalendar: calendarOption.value
+                  }))
+                }
+              >
+                {calendarOption.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <label className="checkbox-row mini-checkbox">
@@ -1104,7 +1167,9 @@ function ProfilePage() {
         </label>
 
         <div className="field">
-          <span>성별</span>
+          <span>
+            <IconLabel icon="spark">성별</IconLabel>
+          </span>
           <div className="chip-row">
             {[
               { label: "여성", value: "female" },
@@ -1520,7 +1585,7 @@ function SessionPage() {
       ) : null}
 
       <div className="choice-list">
-        {node.options.map((option) => (
+        {node.options.map((option, index) => (
           <button
             key={option.id}
             className="choice-card"
@@ -1533,7 +1598,10 @@ function SessionPage() {
             }}
           >
             <div className="choice-head">
-              <strong>{option.label}</strong>
+              <div className="choice-title-wrap">
+                <span className="choice-index">{index + 1}</span>
+                <strong>{option.label}</strong>
+              </div>
               <UiIcon name="arrowRight" />
             </div>
             {option.description ? <p>{option.description}</p> : null}
@@ -1762,6 +1830,16 @@ function ResultPage() {
             <span className="badge">{sourceLabel(result.generationSource)}</span>
             {session.saved ? <span className="badge">저장됨</span> : null}
           </div>
+          <div className="result-meta-strip">
+            <span className="result-meta-chip">
+              <UiIcon name="chart" />
+              응답 {session.responses.length}개
+            </span>
+            <span className="result-meta-chip">
+              <UiIcon name="clock" />
+              약 {modeEstimatedMinutes(topic, session.consultMode)}분 코스
+            </span>
+          </div>
           <p className="muted">생성 시각 {formatDateTime(result.generatedAt)}</p>
           {result.accuracyNote ? <p className="accuracy-note">{result.accuracyNote}</p> : null}
         </div>
@@ -1790,11 +1868,15 @@ function ResultPage() {
 function ArchivePage() {
   const results = useAppStore((state) => state.results);
   const sessions = useAppStore((state) => state.sessions);
-  const savedResults = useMemo(
+  const savedEntries = useMemo(
     () =>
       [...results]
-        .filter((result) => sessions.find((session) => session.resultId === result.id)?.saved)
-        .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt)),
+        .map((result) => ({
+          result,
+          session: sessions.find((session) => session.resultId === result.id)
+        }))
+        .filter((entry) => Boolean(entry.session?.saved))
+        .sort((a, b) => b.result.generatedAt.localeCompare(a.result.generatedAt)),
     [results, sessions]
   );
 
@@ -1811,21 +1893,30 @@ function ArchivePage() {
         </div>
       }
     >
-      {savedResults.length === 0 ? (
+      {savedEntries.length === 0 ? (
         <div className="panel empty-state">
           <h3>아직 저장한 결과가 없습니다.</h3>
           <p>결과 화면에서 저장 버튼을 누르면 이곳에 보관됩니다.</p>
         </div>
       ) : (
         <div className="archive-list">
-          {savedResults.map((result) => (
-            <Link key={result.id} className="panel result-link" to={resultPath(result.id)}>
+          {savedEntries.map((entry) => (
+            <Link key={entry.result.id} className="panel result-link" to={resultPath(entry.result.id)}>
               <div className="archive-head">
-                <p className="overline">{topicById(result.topicId).label}</p>
+                <p className="overline">{topicById(entry.result.topicId).label}</p>
                 <UiIcon name="arrowRight" />
               </div>
-              <h3>{result.summary}</h3>
-              <p>{formatDateTime(result.generatedAt)}</p>
+              <h3>{entry.result.summary}</h3>
+              <div className="archive-meta-row">
+                <span className="archive-meta-chip">
+                  <UiIcon name="clock" />
+                  {formatDateTime(entry.result.generatedAt)}
+                </span>
+                <span className="archive-meta-chip">
+                  <UiIcon name="chart" />
+                  {entry.session ? modeLabel(entry.session.consultMode) : "모드 정보 없음"}
+                </span>
+              </div>
             </Link>
           ))}
         </div>
@@ -1987,10 +2078,28 @@ function SettingsPage() {
 
       <div className="panel">
         <p className="overline">저장 데이터 현황</p>
-        <div className="metric-row">
-          <span>세션 {sessions.length}</span>
-          <span>결과 {results.length}</span>
-          <span>공유 링크 {shares.length}</span>
+        <div className="settings-kpi-grid">
+          <article className="settings-kpi-item">
+            <span className="settings-kpi-icon">
+              <UiIcon name="chart" />
+            </span>
+            <strong>{sessions.length}</strong>
+            <span>세션</span>
+          </article>
+          <article className="settings-kpi-item">
+            <span className="settings-kpi-icon">
+              <UiIcon name="spark" />
+            </span>
+            <strong>{results.length}</strong>
+            <span>결과</span>
+          </article>
+          <article className="settings-kpi-item">
+            <span className="settings-kpi-icon">
+              <UiIcon name="share" />
+            </span>
+            <strong>{shares.length}</strong>
+            <span>공유 링크</span>
+          </article>
         </div>
       </div>
 
