@@ -119,6 +119,14 @@ small,
     max(16px, env(safe-area-inset-left));
 }
 
+.app-shell.app-shell-landing {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 0;
+}
+
 .screen {
   display: flex;
   flex-direction: column;
@@ -462,6 +470,55 @@ small,
   border-color: #cde1ff;
   background: var(--primary-soft);
   color: var(--primary-strong);
+}
+
+.landing-onepage {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding:
+    calc(16px + env(safe-area-inset-top))
+    max(18px, env(safe-area-inset-right))
+    calc(24px + env(safe-area-inset-bottom))
+    max(18px, env(safe-area-inset-left));
+}
+
+.landing-onepage .screen-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px;
+}
+
+.landing-onepage-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.landing-onepage-main h1 {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.32;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.landing-onepage-main p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.landing-onepage-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.landing-start-button {
+  min-height: 54px;
 }
 
 .landing-hero h1 {
@@ -1419,9 +1476,17 @@ small,
 }
 
 @media (max-width: 719px) {
+  .app-shell.app-shell-landing {
+    padding: 0;
+  }
+
   .app-shell {
     padding-top: calc(8px + env(safe-area-inset-top));
     padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .landing-onepage-main h1 {
+    font-size: 28px;
   }
 
   .screen-header h1 {
@@ -1502,6 +1567,22 @@ small,
 }
 
 @media (min-width: 720px) {
+  .app-shell.app-shell-landing {
+    width: min(100%, 780px);
+    margin: 0 auto;
+    padding:
+      calc(16px + env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      calc(28px + env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+  }
+
+  .app-shell.app-shell-landing .landing-onepage {
+    min-height: calc(100vh - 44px);
+    min-height: calc(100dvh - 44px);
+    padding: 0;
+  }
+
   .app-shell {
     padding-top: calc(16px + env(safe-area-inset-top));
   }

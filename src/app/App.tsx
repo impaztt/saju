@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BrowserRouter,
   Link,
@@ -380,7 +380,8 @@ function ScreenFrame({
   className,
   footerClassName,
   hideNav = false,
-  hideHeader = false
+  hideHeader = false,
+  hideTopbar = false
 }: {
   eyebrow?: string;
   title: string;
@@ -391,23 +392,26 @@ function ScreenFrame({
   footerClassName?: string;
   hideNav?: boolean;
   hideHeader?: boolean;
+  hideTopbar?: boolean;
 }) {
   return (
     <main className={["screen", className].filter(Boolean).join(" ")}>
-      <div className="topbar">
-        <Link className="brand" to="/">
-          <span className="brand-mark" aria-hidden="true">
-            <UiIcon name="spark" />
-          </span>
-          <span className="brand-text">온결 사주</span>
-        </Link>
-        {hideNav ? null : (
-          <div className="topbar-links">
-            <TopbarLink to="/archive" icon="archive" label="보관함" />
-            <TopbarLink to="/settings" icon="settings" label="설정" />
-          </div>
-        )}
-      </div>
+      {hideTopbar ? null : (
+        <div className="topbar">
+          <Link className="brand" to="/">
+            <span className="brand-mark" aria-hidden="true">
+              <UiIcon name="spark" />
+            </span>
+            <span className="brand-text">온결 사주</span>
+          </Link>
+          {hideNav ? null : (
+            <div className="topbar-links">
+              <TopbarLink to="/archive" icon="archive" label="보관함" />
+              <TopbarLink to="/settings" icon="settings" label="설정" />
+            </div>
+          )}
+        </div>
+      )}
       {hideHeader ? null : (
         <header className="screen-header">
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
@@ -856,8 +860,13 @@ function AppRouter() {
   const setNetworkStatus = useAppStore((state) => state.setNetworkStatus);
   const lastError = useAppStore((state) => state.lastError);
   const clearError = useAppStore((state) => state.clearError);
+  const reloadHandledRef = useRef(false);
 
   useEffect(() => {
+    if (reloadHandledRef.current) {
+      return;
+    }
+    reloadHandledRef.current = true;
     if (!isReloadNavigation() || location.pathname === "/") {
       return;
     }
@@ -888,7 +897,7 @@ function AppRouter() {
   }, [lastError, clearError]);
 
   return (
-    <div className="app-shell">
+    <div className={"app-shell" + (location.pathname === "/" ? " app-shell-landing" : "")}>
       {networkStatus === "offline" ? (
         <div className="global-alert warning">
           <IconLabel icon="warning">오프라인 상태입니다. 로컬 저장 기준으로 동작합니다.</IconLabel>
@@ -927,55 +936,33 @@ export function App() {
 }
 
 function LandingPage() {
-  const sessions = useAppStore((state) => state.sessions);
-  const acceptedNotice = useAppStore((state) => state.acceptedNotice);
+  const navigate = useNavigate();
   const cloudAuthProvider = useAppStore((state) => state.cloudAuthProvider);
   const signInKakao = useAppStore((state) => state.signInKakao);
-  const latestOpenSession = useMemo(
-    () =>
-      [...sessions]
-        .filter(
-          (session) =>
-            ["draft", "review", "loading"].includes(session.status) &&
-            session.compatibility !== "outdated"
-        )
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
-    [sessions]
-  );
-  const latestTopic = latestOpenSession ? topicById(latestOpenSession.topicId) : null;
 
   return (
-    <ScreenFrame className="landing-screen" hideNav title="온결 사주" subtitle="주제별 질문을 통해 현재 심리 흐름을 저장하고, 다시 접속했을 때 오늘의 흐름처럼 이어서 분석합니다.">
-      <section className="panel soft landing-intro-panel">
-        <p className="overline">START</p>
-        <h3>시작하기를 누르면 주제 선택 후 상담이 바로 시작됩니다.</h3>
+    <ScreenFrame
+      className="landing-screen landing-onepage"
+      hideNav
+      hideHeader
+      hideTopbar
+      title="온결 사주"
+    >
+      <section className="landing-onepage-main">
+        <p className="landing-kicker">온결 사주</p>
+        <h1>질문 기반으로 오늘의 심리 흐름을 읽는 사주 상담</h1>
+        <p>시작하기를 누르면 바로 주제 선택으로 이동합니다.</p>
       </section>
 
-      {latestOpenSession && latestTopic ? (
-        <Link className="panel resume-panel" to={sessionPath(latestOpenSession)}>
-          <div>
-            <p className="overline">이어 하기</p>
-            <h3>
-              {latestTopic.label} · {modeLabel(latestOpenSession.consultMode)} 상담을 이어서 진행합니다.
-            </h3>
-            <p>최근 업데이트 {formatDateTime(latestOpenSession.updatedAt)}</p>
-          </div>
-          <UiIcon name="arrowRight" />
-        </Link>
-      ) : null}
-
-      <div className="action-stack">
+      <div className="landing-onepage-actions">
+        <button className="button primary landing-start-button" onClick={() => navigate("/topics")}>
+          <IconLabel icon="play">시작하기</IconLabel>
+        </button>
         {isSupabaseConfigured && cloudAuthProvider !== "kakao" ? (
           <button className="button kakao" onClick={() => void signInKakao()}>
             <IconLabel icon="link">카카오 로그인</IconLabel>
           </button>
         ) : null}
-        <Link className="button primary" to={acceptedNotice ? "/topics" : "/notice"}>
-          <IconLabel icon="play">시작하기</IconLabel>
-        </Link>
-        <Link className="button ghost" to="/profile">
-          <IconLabel icon="profile">프로필 설정</IconLabel>
-        </Link>
       </div>
     </ScreenFrame>
   );
