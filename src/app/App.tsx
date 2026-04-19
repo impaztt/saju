@@ -27,10 +27,6 @@ import type {
   UserProfile
 } from "../types";
 
-function isProfileComplete(profile: UserProfile) {
-  return Boolean(profile.birthDate && (profile.birthTimeUnknown || profile.birthTime));
-}
-
 function topicById(topicId: TopicId) {
   return TOPICS.find((topic) => topic.id === topicId) as TopicDefinition;
 }
@@ -1137,225 +1133,267 @@ function ProfilePage() {
 
 function TopicHomePage() {
   const navigate = useNavigate();
-  const profile = useAppStore((state) => state.profile);
   const consultMode = useAppStore((state) => state.consultMode);
   const setConsultMode = useAppStore((state) => state.setConsultMode);
   const sessions = useAppStore((state) => state.sessions);
   const results = useAppStore((state) => state.results);
   const startSession = useAppStore((state) => state.startSession);
-  const latestOpenSession = useMemo(
+  const [stage, setStage] = useState<0 | 1 | 2>(0);
+  const [selectedMode, setSelectedMode] = useState<ConsultationMode>(consultMode);
+  const [topicCursor, setTopicCursor] = useState(0);
+  const selectedTopic = TOPICS[topicCursor];
+  const stageLabels = ["상담 깊이", "주제 선택", "시작 확인"] as const;
+
+  useEffect(() => {
+    setSelectedMode(consultMode);
+  }, [consultMode]);
+
+  const selectedOpenSession = useMemo(
     () =>
       [...sessions]
-        .filter(
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .find(
           (session) =>
+            session.topicId === selectedTopic.id &&
+            session.consultMode === selectedMode &&
             ["draft", "review", "loading"].includes(session.status) &&
             session.compatibility !== "outdated"
-        )
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
-    [sessions]
+        ),
+    [selectedMode, selectedTopic.id, sessions]
   );
-  const profileReady = isProfileComplete(profile);
-  const latestResultByTopic = useMemo(() => {
-    const map = new Map<TopicId, ConsultationResult>();
-    const candidates = [...sessions]
-      .filter(
+
+  const selectedLatestResult = useMemo(() => {
+    const latestCompleted = [...sessions]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .find(
         (session) =>
+          session.topicId === selectedTopic.id &&
+          session.consultMode === selectedMode &&
           session.status === "result" &&
-          session.resultId &&
-          session.consultMode === consultMode &&
+          Boolean(session.resultId) &&
           session.compatibility !== "outdated"
-      )
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      );
 
-    candidates.forEach((session) => {
-      if (!session.resultId || map.has(session.topicId)) {
-        return;
-      }
-      const result = results.find((entry) => entry.id === session.resultId);
-      if (result) {
-        map.set(session.topicId, result);
-      }
-    });
+    if (!latestCompleted?.resultId) {
+      return null;
+    }
 
-    return map;
-  }, [consultMode, results, sessions]);
-  const restartableTopics = useMemo(
-    () =>
-      TOPICS.filter((topic) =>
-        sessions.some(
-          (session) =>
-            session.topicId === topic.id &&
-            session.consultMode === consultMode &&
-            session.compatibility !== "outdated"
-        )
-      ),
-    [consultMode, sessions]
-  );
-  const completedTopicCount = useMemo(
-    () =>
-      new Set(
-        sessions
-          .filter(
-            (session) =>
-              session.status === "result" &&
-              session.consultMode === consultMode &&
-              session.compatibility !== "outdated"
-          )
-          .map((session) => session.topicId)
-      ).size,
-    [consultMode, sessions]
-  );
+    return results.find((result) => result.id === latestCompleted.resultId) ?? null;
+  }, [results, selectedMode, selectedTopic.id, sessions]);
 
-  const launchTopic = (topicId: TopicId, forceRestart = false) => {
-    const session = startSession(topicId, forceRestart, consultMode);
+  const launchSelectedTopic = (forceRestart = false) => {
+    const session = startSession(selectedTopic.id, forceRestart, selectedMode);
     navigate(sessionPath(session));
+  };
+
+  const moveTopicCursor = (delta: number) => {
+    setTopicCursor((current) => {
+      const next = (current + delta + TOPICS.length) % TOPICS.length;
+      return next;
+    });
+  };
+
+  const moveStage = (delta: -1 | 1) => {
+    setStage((current) => {
+      if (delta > 0) {
+        return (Math.min(2, current + 1) as 0 | 1 | 2);
+      }
+      return (Math.max(0, current - 1) as 0 | 1 | 2);
+    });
   };
 
   return (
     <ScreenFrame
+      className="topic-flow-screen"
+      hideNav
       eyebrow="주제 선택"
-      title="지금 맞는 주제 하나를 고르세요."
-      subtitle="선택 즉시 질문이 시작됩니다."
+      title="한 화면에서 차례대로 선택하세요."
+      subtitle="스크롤 없이 단계별로 진행됩니다."
     >
-      <section className="topic-overview-strip">
-        <article className="topic-overview-item">
-          <UiIcon name="chart" />
-          <div>
-            <strong>{modeQuestionRange(consultMode)}</strong>
-            <span>{modeLabel(consultMode)}</span>
-          </div>
-        </article>
-        <article className="topic-overview-item">
-          <UiIcon name="archive" />
-          <div>
-            <strong>{completedTopicCount}개</strong>
-            <span>완료된 주제</span>
-          </div>
-        </article>
-        <article className="topic-overview-item">
-          <UiIcon name="spark" />
-          <div>
-            <strong>{TOPICS.length}개</strong>
-            <span>전체 주제</span>
-          </div>
-        </article>
-      </section>
-
-      <div className="panel soft profile-panel">
-        <div>
-          <p className="overline">프로필 상태</p>
-          <h3>{profileReady ? "기본 정보 입력 완료" : "빠른 시작 모드"}</h3>
-          <p>{formatProfileSummary(profile)}</p>
-        </div>
-        <Link className="button ghost small" to="/profile">
-          <IconLabel icon="profile">프로필 수정</IconLabel>
-        </Link>
-      </div>
-
-      <section className="panel consultation-mode-panel">
-        <div className="consultation-mode-head">
-          <p className="overline">상담 깊이 선택</p>
-          <h3>{modeLabel(consultMode)}</h3>
-          <p>{modeGuide(consultMode)}</p>
-        </div>
-        <div className="consultation-mode-options">
-          {([
-            {
-              id: "quick",
-              title: "간단하게 보기",
-              detail: "9문항",
-              helper: "핵심 흐름 빠르게",
-              icon: "clock"
-            },
-            {
-              id: "focused",
-              title: "집중해서 보기",
-              detail: "22문항",
-              helper: "맥락/패턴 깊게",
-              icon: "chart"
-            }
-          ] as const).map((modeOption) => (
+      <section className="topic-flow-shell">
+        <div className="topic-flow-progress">
+          {stageLabels.map((label, index) => (
             <button
-              key={modeOption.id}
+              key={label}
               className={
-                "consultation-mode-option" + (consultMode === modeOption.id ? " active" : "")
+                "topic-flow-step" +
+                (stage === index ? " active" : "") +
+                (stage > index ? " completed" : "")
               }
-              onClick={() => setConsultMode(modeOption.id)}
+              onClick={() => setStage(index as 0 | 1 | 2)}
+              type="button"
             >
-              <span className="mode-option-icon" aria-hidden="true">
-                <UiIcon name={modeOption.icon} />
-              </span>
-              <div>
-                <strong>{modeOption.title}</strong>
-                <span>{modeOption.detail}</span>
-                <small>{modeOption.helper}</small>
-              </div>
+              <small>{index + 1}</small>
+              <strong>{label}</strong>
             </button>
           ))}
         </div>
-      </section>
 
-      {latestOpenSession ? (
-        <Link className="panel continue-panel" to={sessionPath(latestOpenSession)}>
-          <div>
-            <p className="overline">진행 중 상담</p>
-            <h3>
-              {topicById(latestOpenSession.topicId).label} ·{" "}
-              {modeLabel(latestOpenSession.consultMode)} 상담을 이어서 진행합니다.
-            </h3>
-            <p>최근 업데이트 {formatDateTime(latestOpenSession.updatedAt)}</p>
-          </div>
-          <UiIcon name="arrowRight" />
-        </Link>
-      ) : null}
-
-      <div className="topic-home-grid">
-        {TOPICS.map((topic) => (
-          <button
-            key={topic.id}
-            className={"topic-home-card topic-tone-" + topic.id}
-            onClick={() => launchTopic(topic.id)}
-          >
-            <div className="topic-home-main">
-              <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
-              <div>
-                <strong>{topic.label}</strong>
-                <p>{topic.shortBlurb}</p>
-                {latestResultByTopic.has(topic.id) ? (
-                  <p className="today-fate-line">
-                    오늘의 흐름: {latestResultByTopic.get(topic.id)?.summary}
-                  </p>
-                ) : null}
+        <div className="topic-flow-stage">
+          {stage === 0 ? (
+            <>
+              <div className="topic-flow-head">
+                <p className="overline">1단계</p>
+                <h3>상담 깊이를 선택하세요.</h3>
+                <p>{modeGuide(selectedMode)}</p>
               </div>
-            </div>
-            <div className="topic-home-meta">
-              <span className="topic-time">
-                {modeQuestionRange(consultMode)} · 약 {modeEstimatedMinutes(topic, consultMode)}분
-              </span>
-              <span className="topic-enter" aria-hidden="true">
-                <UiIcon name="arrowRight" />
-              </span>
-            </div>
-          </button>
-        ))}
-      </div>
+              <div className="mode-flow-grid">
+                {([
+                  {
+                    id: "quick",
+                    title: "간단하게 보기",
+                    detail: "9문항 · 핵심 흐름 정리",
+                    icon: "clock"
+                  },
+                  {
+                    id: "focused",
+                    title: "집중해서 보기",
+                    detail: "22문항 · 맥락/패턴 분석",
+                    icon: "chart"
+                  }
+                ] as const).map((modeOption) => (
+                  <button
+                    key={modeOption.id}
+                    className={
+                      "mode-flow-option" + (selectedMode === modeOption.id ? " active" : "")
+                    }
+                    onClick={() => {
+                      setSelectedMode(modeOption.id);
+                      setConsultMode(modeOption.id);
+                    }}
+                    type="button"
+                  >
+                    <span className="mode-flow-icon" aria-hidden="true">
+                      <UiIcon name={modeOption.icon} />
+                    </span>
+                    <div>
+                      <strong>{modeOption.title}</strong>
+                      <span>{modeOption.detail}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
 
-      {restartableTopics.length > 0 ? (
-        <div className="panel">
-          <p className="overline">주제별 초기화</p>
-          <div className="topic-reset-list">
-            {restartableTopics.map((topic) => (
-              <button
-                key={topic.id}
-                className="button ghost small"
-                onClick={() => launchTopic(topic.id, true)}
-              >
-                <IconLabel icon="trash">{topic.label} 초기화 후 다시 상담</IconLabel>
-              </button>
-            ))}
-          </div>
+          {stage === 1 ? (
+            <>
+              <div className="topic-flow-head">
+                <p className="overline">2단계</p>
+                <h3>주제를 선택하세요.</h3>
+                <p>좌우 버튼으로 주제를 바꾸고 확인하세요.</p>
+              </div>
+              <div className="topic-picker-row">
+                <button
+                  className="topic-picker-nav"
+                  type="button"
+                  onClick={() => moveTopicCursor(-1)}
+                  title="이전 주제"
+                >
+                  <UiIcon name="back" />
+                </button>
+                <article className={"topic-focus topic-tone-" + selectedTopic.id}>
+                  <div className="topic-focus-title">
+                    <span className="topic-dot" style={{ backgroundColor: selectedTopic.accent }} />
+                    <strong>{selectedTopic.label}</strong>
+                  </div>
+                  <p>{selectedTopic.shortBlurb}</p>
+                  <div className="topic-focus-meta">
+                    <span>{modeQuestionRange(selectedMode)}</span>
+                    <span>약 {modeEstimatedMinutes(selectedTopic, selectedMode)}분</span>
+                  </div>
+                  {selectedLatestResult ? (
+                    <p className="topic-focus-result">최근 흐름: {selectedLatestResult.summary}</p>
+                  ) : null}
+                </article>
+                <button
+                  className="topic-picker-nav"
+                  type="button"
+                  onClick={() => moveTopicCursor(1)}
+                  title="다음 주제"
+                >
+                  <UiIcon name="arrowRight" />
+                </button>
+              </div>
+              <p className="topic-picker-index">
+                {topicCursor + 1} / {TOPICS.length}
+              </p>
+            </>
+          ) : null}
+
+          {stage === 2 ? (
+            <>
+              <div className="topic-flow-head">
+                <p className="overline">3단계</p>
+                <h3>선택을 확인하고 시작하세요.</h3>
+                <p>아래 버튼을 누르면 바로 질문이 시작됩니다.</p>
+              </div>
+              <div className="topic-confirm-grid">
+                <article className="topic-confirm-card">
+                  <p className="overline">상담 깊이</p>
+                  <h4>{modeLabel(selectedMode)}</h4>
+                  <p>{modeQuestionRange(selectedMode)}</p>
+                </article>
+                <article className={"topic-confirm-card topic-tone-" + selectedTopic.id}>
+                  <p className="overline">주제</p>
+                  <h4>{selectedTopic.label}</h4>
+                  <p>{selectedTopic.featuredPrompt}</p>
+                </article>
+              </div>
+              <div className="topic-confirm-banner">
+                {selectedOpenSession ? (
+                  <IconLabel icon="archive">
+                    진행 중인 상담이 있습니다. 이어 하거나 새로 시작할 수 있습니다.
+                  </IconLabel>
+                ) : (
+                  <IconLabel icon="check">새 상담을 시작할 준비가 되었습니다.</IconLabel>
+                )}
+              </div>
+            </>
+          ) : null}
         </div>
-      ) : null}
+
+        <div className="topic-flow-actions">
+          {stage === 0 ? (
+            <Link className="button ghost" to="/profile">
+              <IconLabel icon="profile">프로필</IconLabel>
+            </Link>
+          ) : (
+            <button className="button ghost" onClick={() => moveStage(-1)} type="button">
+              <IconLabel icon="back">이전</IconLabel>
+            </button>
+          )}
+
+          {stage < 2 ? (
+            <button className="button primary" onClick={() => moveStage(1)} type="button">
+              <IconLabel icon="arrowRight">
+                {stage === 0 ? "주제 선택으로" : "시작 확인으로"}
+              </IconLabel>
+            </button>
+          ) : selectedOpenSession ? (
+            <div className="topic-flow-final-actions">
+              <button
+                className="button secondary"
+                onClick={() => launchSelectedTopic(false)}
+                type="button"
+              >
+                <IconLabel icon="play">이어서 시작</IconLabel>
+              </button>
+              <button
+                className="button primary"
+                onClick={() => launchSelectedTopic(true)}
+                type="button"
+              >
+                <IconLabel icon="spark">새로 시작</IconLabel>
+              </button>
+            </div>
+          ) : (
+            <button className="button primary" onClick={() => launchSelectedTopic()} type="button">
+              <IconLabel icon="play">시작하기</IconLabel>
+            </button>
+          )}
+        </div>
+      </section>
     </ScreenFrame>
   );
 }
