@@ -1191,6 +1191,20 @@ function TopicHomePage() {
       ),
     [consultMode, sessions]
   );
+  const completedTopicCount = useMemo(
+    () =>
+      new Set(
+        sessions
+          .filter(
+            (session) =>
+              session.status === "result" &&
+              session.consultMode === consultMode &&
+              session.compatibility !== "outdated"
+          )
+          .map((session) => session.topicId)
+      ).size,
+    [consultMode, sessions]
+  );
 
   const launchTopic = (topicId: TopicId, forceRestart = false) => {
     const session = startSession(topicId, forceRestart, consultMode);
@@ -1200,9 +1214,33 @@ function TopicHomePage() {
   return (
     <ScreenFrame
       eyebrow="주제 선택"
-      title="지금 고민과 가장 가까운 상담 주제를 고르세요."
-      subtitle="진행 중인 주제는 이어서 시작하고, 새 주제는 즉시 질문이 열립니다."
+      title="지금 맞는 주제 하나를 고르세요."
+      subtitle="선택 즉시 질문이 시작됩니다."
     >
+      <section className="topic-overview-strip">
+        <article className="topic-overview-item">
+          <UiIcon name="chart" />
+          <div>
+            <strong>{modeQuestionRange(consultMode)}</strong>
+            <span>{modeLabel(consultMode)}</span>
+          </div>
+        </article>
+        <article className="topic-overview-item">
+          <UiIcon name="archive" />
+          <div>
+            <strong>{completedTopicCount}개</strong>
+            <span>완료된 주제</span>
+          </div>
+        </article>
+        <article className="topic-overview-item">
+          <UiIcon name="spark" />
+          <div>
+            <strong>{TOPICS.length}개</strong>
+            <span>전체 주제</span>
+          </div>
+        </article>
+      </section>
+
       <div className="panel soft profile-panel">
         <div>
           <p className="overline">프로필 상태</p>
@@ -1222,8 +1260,20 @@ function TopicHomePage() {
         </div>
         <div className="consultation-mode-options">
           {([
-            { id: "quick", title: "간단하게 보기", detail: "9문항 · 핵심 흐름 빠른 진단" },
-            { id: "focused", title: "집중해서 보기", detail: "22문항 · 맥락/패턴 심화 해석" }
+            {
+              id: "quick",
+              title: "간단하게 보기",
+              detail: "9문항",
+              helper: "핵심 흐름 빠르게",
+              icon: "clock"
+            },
+            {
+              id: "focused",
+              title: "집중해서 보기",
+              detail: "22문항",
+              helper: "맥락/패턴 깊게",
+              icon: "chart"
+            }
           ] as const).map((modeOption) => (
             <button
               key={modeOption.id}
@@ -1232,8 +1282,14 @@ function TopicHomePage() {
               }
               onClick={() => setConsultMode(modeOption.id)}
             >
-              <strong>{modeOption.title}</strong>
-              <span>{modeOption.detail}</span>
+              <span className="mode-option-icon" aria-hidden="true">
+                <UiIcon name={modeOption.icon} />
+              </span>
+              <div>
+                <strong>{modeOption.title}</strong>
+                <span>{modeOption.detail}</span>
+                <small>{modeOption.helper}</small>
+              </div>
             </button>
           ))}
         </div>
@@ -1273,10 +1329,12 @@ function TopicHomePage() {
               </div>
             </div>
             <div className="topic-home-meta">
-              <span>
+              <span className="topic-time">
                 {modeQuestionRange(consultMode)} · 약 {modeEstimatedMinutes(topic, consultMode)}분
               </span>
-              <UiIcon name="arrowRight" />
+              <span className="topic-enter" aria-hidden="true">
+                <UiIcon name="arrowRight" />
+              </span>
             </div>
           </button>
         ))}
@@ -1374,8 +1432,8 @@ function SessionPage() {
   return (
     <ScreenFrame
       eyebrow={topic.label}
-      title={node.prompt}
-      subtitle={node.helper}
+      title="질문 응답"
+      subtitle="가장 가까운 선택지를 눌러 진행하세요."
       footer={
         <div className="action-stack">
           <button
@@ -1407,6 +1465,15 @@ function SessionPage() {
           <span style={{ width: `${progress}%` }} />
         </div>
       </div>
+
+      <section className="panel session-question-panel">
+        <div className="session-question-meta">
+          <span className="badge">Q{Math.min(currentStep, totalSteps)}</span>
+          <span>{modeLabel(session.consultMode)}</span>
+        </div>
+        <h2>{node.prompt}</h2>
+        {node.helper ? <p>{node.helper}</p> : null}
+      </section>
 
       {session.compatibility === "warning" ? (
         <div className="panel notice-panel">
@@ -1460,8 +1527,8 @@ function ReviewPage() {
   return (
     <ScreenFrame
       eyebrow="답변 검토"
-      title="결과 생성 전에 답변을 다시 확인하세요."
-      subtitle="여기서 수정한 항목은 이후 분기와 결과 카드에 즉시 반영됩니다."
+      title="답변을 한 번 더 확인하세요."
+      subtitle="수정 후 바로 결과를 생성할 수 있습니다."
       footer={
         <div className="action-stack">
           <button
@@ -1479,6 +1546,21 @@ function ReviewPage() {
         </div>
       }
     >
+      <section className="review-summary-strip">
+        <span className="review-summary-chip">
+          <UiIcon name="chart" />
+          답변 {session.responses.length}개
+        </span>
+        <span className="review-summary-chip">
+          <UiIcon name="clock" />
+          {modeLabel(session.consultMode)}
+        </span>
+        <span className="review-summary-chip">
+          <UiIcon name="profile" />
+          {session.profileSnapshot.birthDate ? "프로필 입력됨" : "빠른 시작"}
+        </span>
+      </section>
+
       <div className="panel soft">
         <p className="overline">기본 정보</p>
         <p>{formatProfileSummary(session.profileSnapshot)}</p>
@@ -1562,8 +1644,8 @@ function LoadingPage() {
   return (
     <ScreenFrame
       eyebrow="결과 생성"
-      title="답변 흐름을 분석하고 결과를 생성하고 있습니다."
-      subtitle="로컬 결과를 먼저 생성한 뒤, 연결 가능 상태에서는 확장 소스로 전환할 수 있게 설계했습니다."
+      title="분석을 진행 중입니다."
+      subtitle="잠시만 기다려 주세요."
     >
       <div className="loading-wrap">
         <div className="loading-spinner" aria-hidden="true" />
@@ -1607,7 +1689,7 @@ function ResultPage() {
     <ScreenFrame
       eyebrow={topic.label}
       title={result.summary}
-      subtitle="카드 단위로 읽고, 저장하거나 공유 링크를 발급할 수 있습니다."
+      subtitle="핵심 카드와 행동 포인트를 확인하세요."
       footer={
         <div className="action-stack">
           <button className="button primary" onClick={() => saveSession(session.id)}>
@@ -1681,8 +1763,8 @@ function ArchivePage() {
   return (
     <ScreenFrame
       eyebrow="보관함"
-      title="저장한 결과를 다시 확인할 수 있습니다."
-      subtitle="최근 생성한 결과부터 시간순으로 정렬됩니다."
+      title="저장한 결과 모음"
+      subtitle="최근 결과부터 확인할 수 있습니다."
       footer={
         <div className="action-stack">
           <Link className="button primary" to="/topics">
@@ -1794,8 +1876,8 @@ function SettingsPage() {
   return (
     <ScreenFrame
       eyebrow="설정"
-      title="데이터와 공유 링크를 관리합니다."
-      subtitle="네트워크, Supabase 연결 상태, 로그인 및 데이터 동기화를 함께 관리합니다."
+      title="계정과 데이터를 관리하세요."
+      subtitle="로그인, 동기화, 공유 링크를 한곳에서 관리합니다."
     >
       <div className="info-grid settings-grid">
         <div className="panel soft">
