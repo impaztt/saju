@@ -1207,7 +1207,7 @@ function TopicHomePage() {
   const [selectedMode, setSelectedMode] = useState<ConsultationMode>(consultMode);
   const [topicCursor, setTopicCursor] = useState(0);
   const selectedTopic = TOPICS[topicCursor];
-  const stageLabels = ["상담 깊이", "주제 선택", "시작 확인"] as const;
+  const stageLabels = ["방식", "주제", "확인"] as const;
 
   useEffect(() => {
     setSelectedMode(consultMode);
@@ -1272,8 +1272,8 @@ function TopicHomePage() {
       className="topic-flow-screen"
       hideNav
       eyebrow="주제 선택"
-      title="한 화면에서 차례대로 선택하세요."
-      subtitle="스크롤 없이 단계별로 진행됩니다."
+      title="차례대로 고르고 바로 시작하세요."
+      subtitle="한 화면에서 3단계로 완료됩니다."
     >
       <section className="topic-flow-shell">
         <div className="topic-flow-progress">
@@ -1294,12 +1294,23 @@ function TopicHomePage() {
           ))}
         </div>
 
+        <div className="topic-flow-selection-bar">
+          <span className="selection-pill">
+            <UiIcon name="clock" />
+            {modeLabel(selectedMode)}
+          </span>
+          <span className="selection-pill">
+            <UiIcon name="spark" />
+            {selectedTopic.label}
+          </span>
+        </div>
+
         <div className="topic-flow-stage">
           {stage === 0 ? (
             <>
               <div className="topic-flow-head">
                 <p className="overline">1단계</p>
-                <h3>상담 깊이를 선택하세요.</h3>
+                <h3>상담 방식을 고르세요.</h3>
                 <p>{modeGuide(selectedMode)}</p>
               </div>
               <div className="mode-flow-grid">
@@ -1345,7 +1356,7 @@ function TopicHomePage() {
             <>
               <div className="topic-flow-head">
                 <p className="overline">2단계</p>
-                <h3>주제를 선택하세요.</h3>
+                <h3>주제를 고르세요.</h3>
                 <p>좌우 버튼으로 주제를 바꾸고 확인하세요.</p>
               </div>
               <div className="topic-picker-row">
