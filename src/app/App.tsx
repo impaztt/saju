@@ -1353,6 +1353,9 @@ function TopicHomePage() {
 
   const launchSelectedTopic = (forceRestart = false) => {
     const session = startSession(selectedTopic.id, forceRestart, selectedMode);
+    if (!session) {
+      return;
+    }
     navigate(sessionPath(session));
   };
 
@@ -1532,6 +1535,9 @@ function SessionPage() {
               className="button primary"
               onClick={() => {
                 const next = startSession(session.topicId, true, session.consultMode);
+                if (!next) {
+                  return;
+                }
                 navigate(sessionPath(next), { replace: true });
               }}
             >

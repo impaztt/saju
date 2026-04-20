@@ -72,6 +72,9 @@ function createSession(
   userId: string
 ): ConsultationSession {
   const flow = FLOW_MAP[topicId];
+  if (!flow) {
+    throw new Error(`Missing flow for topic: ${topicId}`);
+  }
   const timestamp = now();
 
   return {
@@ -121,7 +124,7 @@ interface AppState {
     topicId: TopicId,
     forceRestart?: boolean,
     mode?: ConsultationMode
-  ) => ConsultationSession;
+  ) => ConsultationSession | null;
   resumeSession: (sessionId: string) => void;
   submitAnswer: (sessionId: string, nodeId: string, optionId: string) => ConsultationSession | null;
   goBack: (sessionId: string) => ConsultationSession | null;
@@ -177,7 +180,13 @@ export const useAppStore = create<AppState>((set, get) => {
   const persist = () => {
     const state = get();
     const snapshot = toPersistedState(state);
-    savePersistedState(snapshot);
+    try {
+      savePersistedState(snapshot);
+    } catch {
+      set((current) => ({
+        lastError: current.lastError ?? "기기 저장소 기록에 실패했습니다. 상담은 계속 진행할 수 있습니다."
+      }));
+    }
     syncCloudSnapshot(snapshot, state.cloudUserId);
   };
 
@@ -372,12 +381,20 @@ export const useAppStore = create<AppState>((set, get) => {
         return reusable;
       }
 
-      const session = createSession(
-        state.profile,
-        topicId,
-        selectedMode,
-        state.cloudUserId ?? LOCAL_USER_ID
-      );
+      let session: ConsultationSession;
+      try {
+        session = createSession(
+          state.profile,
+          topicId,
+          selectedMode,
+          state.cloudUserId ?? LOCAL_USER_ID
+        );
+      } catch {
+        set({
+          lastError: "선택한 주제로 세션을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        });
+        return null;
+      }
       set((current) => ({
         sessions: [session, ...current.sessions],
         activeSessionId: session.id,

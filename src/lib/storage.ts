@@ -23,13 +23,11 @@ export function loadPersistedState(): Partial<PersistedAppState> {
     return {};
   }
 
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-
-  if (!raw) {
-    return {};
-  }
-
   try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
     return JSON.parse(raw) as PersistedAppState;
   } catch {
     return {};
@@ -41,7 +39,11 @@ export function savePersistedState(state: PersistedAppState) {
     return;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore storage write errors (quota/private mode) and continue in-memory.
+  }
 }
 
 export function clearPersistedState() {
@@ -49,5 +51,9 @@ export function clearPersistedState() {
     return;
   }
 
-  window.localStorage.removeItem(STORAGE_KEY);
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore storage clear errors.
+  }
 }
