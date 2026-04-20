@@ -607,6 +607,8 @@ type ResultActionItem = {
   text: string;
 };
 
+type ResultCardKey = ConsultationResult["cards"][number]["key"];
+
 const TAG_PREFIX_LABELS: Record<string, string> = {
   topic: "주제",
   stage: "관계 단계",
@@ -624,7 +626,7 @@ const TAG_PREFIX_LABELS: Record<string, string> = {
   mind: "마음"
 };
 
-const RESULT_CARD_ICON_MAP: Record<ConsultationResult["cards"][number]["key"], IconName> = {
+const RESULT_CARD_ICON_MAP: Record<ResultCardKey, IconName> = {
   summary: "spark",
   currentFlow: "chart",
   self: "profile",
@@ -635,6 +637,54 @@ const RESULT_CARD_ICON_MAP: Record<ConsultationResult["cards"][number]["key"], I
   dont: "warning",
   oneLine: "spark",
   followUp: "link"
+};
+
+type ResultBoardMeta = {
+  subtitle: string;
+  perspective: string;
+};
+
+const RESULT_BOARD_META: Record<ResultCardKey, ResultBoardMeta> = {
+  summary: {
+    subtitle: "핵심 진단",
+    perspective: "현재 흐름을 한 문장으로 요약해 방향을 선명하게 잡습니다."
+  },
+  currentFlow: {
+    subtitle: "흐름 분석",
+    perspective: "지금 왜 흔들리는지, 어디가 병목인지 맥락으로 풀어냅니다."
+  },
+  self: {
+    subtitle: "내 상태",
+    perspective: "내 감정, 반응 패턴, 에너지 소모 지점을 먼저 점검합니다."
+  },
+  other: {
+    subtitle: "상대·환경",
+    perspective: "상대와 환경이 실제로 어떤 속도로 움직이는지 분리해 봅니다."
+  },
+  structure: {
+    subtitle: "구조 파악",
+    perspective: "문제의 원인을 감정이 아닌 구조로 나눠 실행 가능하게 만듭니다."
+  },
+  nearTerm: {
+    subtitle: "근시기 포인트",
+    perspective: "지금부터 가까운 구간에서 집중해야 할 신호를 정리합니다."
+  },
+  do: {
+    subtitle: "실행 전략",
+    perspective: "바로 적용 가능한 행동 우선순위를 구체적으로 제시합니다."
+  },
+  dont: {
+    subtitle: "회피 전략",
+    perspective: "결과를 망치는 반복 패턴을 먼저 끊도록 경고합니다."
+  },
+  oneLine: {
+    subtitle: "한 줄 정리",
+    perspective: "복잡한 해석을 짧은 기준 문장으로 묶어 기억하기 쉽게 만듭니다."
+  },
+  followUp: {
+    subtitle: "다음 질문",
+    perspective: "리포트를 실제 선택으로 연결하기 위한 후속 질문을 제안합니다."
+  }
 };
 
 function normalizeCardTitle(title: string) {
@@ -714,6 +764,46 @@ function parseResultCards(cards: ConsultationResult["cards"]): ParsedResultCard[
     ...card,
     titleText: normalizeCardTitle(card.title),
     sections: parseResultCardSections(card.body)
+  }));
+}
+
+function sectionLead(section: ParsedResultSection) {
+  const lines = toListItems(section.body);
+  return lines[0] ?? section.body;
+}
+
+function buildStrategyHighlights(card: ParsedResultCard, limit = 4) {
+  return card.sections
+    .flatMap((section) =>
+      toListItems(section.body)
+        .slice(0, 2)
+        .map((line) => ({
+          sectionTitle: section.title,
+          text: line
+        }))
+    )
+    .filter((item) => Boolean(item.text))
+    .slice(0, limit);
+}
+
+type ResultTrailItem = {
+  step: number;
+  prompt: string;
+  answer: string;
+  tags: string[];
+};
+
+function buildTrailItems(session?: ConsultationSession): ResultTrailItem[] {
+  if (!session || session.responses.length === 0) {
+    return [];
+  }
+
+  const flow = FLOW_MAP[session.topicId];
+  return session.responses.map((response, index) => ({
+    step: index + 1,
+    prompt: getNode(flow, response.nodeId)?.prompt ?? "질문",
+    answer: response.label,
+    tags: response.tags
   }));
 }
 
@@ -832,18 +922,6 @@ function ResultReportVisuals({
     }
     return buildActionItems(parsedCards.find((card) => card.key === "followUp"));
   }, [parsedCards, result.recommendedQuestions]);
-  const trailItems = useMemo(() => {
-    if (!session || session.responses.length === 0) {
-      return [];
-    }
-    const flow = FLOW_MAP[session.topicId];
-    return session.responses.map((response, index) => ({
-      step: index + 1,
-      prompt: getNode(flow, response.nodeId)?.prompt ?? "질문",
-      answer: response.label
-    }));
-  }, [session]);
-
   return (
     <>
       <section className="panel result-visual-grid">
@@ -887,26 +965,6 @@ function ResultReportVisuals({
               </div>
             ))}
           </div>
-        </section>
-      ) : null}
-
-      {trailItems.length > 0 ? (
-        <section className="panel result-journey-panel">
-          <header className="result-visual-head compact">
-            <p className="overline">질문 여정</p>
-            <h3>리포트가 만들어진 답변 흐름</h3>
-          </header>
-          <ol className="result-journey-list">
-            {trailItems.map((item) => (
-              <li key={`${item.step}-${item.prompt}`} className="journey-item">
-                <span className="journey-step">{item.step}</span>
-                <div className="journey-main">
-                  <p className="journey-prompt">{item.prompt}</p>
-                  <p className="journey-answer">{item.answer}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
         </section>
       ) : null}
 
@@ -966,45 +1024,236 @@ function ResultReportVisuals({
 
 function ResultCards({ result }: { result: ConsultationResult }) {
   const cards = useMemo(() => parseResultCards(result.cards), [result.cards]);
+  const [expandedKeys, setExpandedKeys] = useState<ResultCardKey[]>([]);
+  const expandedSet = useMemo(() => new Set(expandedKeys), [expandedKeys]);
+
+  useEffect(() => {
+    setExpandedKeys([]);
+  }, [result.id]);
+
+  const allExpanded = cards.length > 0 && expandedKeys.length === cards.length;
+
+  const toggleAll = () => {
+    if (allExpanded) {
+      setExpandedKeys([]);
+      return;
+    }
+    setExpandedKeys(cards.map((card) => card.key));
+  };
+
+  const toggleCard = (key: ResultCardKey) => {
+    setExpandedKeys((current) =>
+      current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key]
+    );
+  };
 
   return (
-    <div className="result-cards">
-      {cards.map((card, index) => {
-        const icon = RESULT_CARD_ICON_MAP[card.key];
-        return (
-          <article key={card.key} className="panel result-card" data-card-key={card.key}>
-            <header className="result-card-header">
-              <span className="result-card-index">{index + 1}</span>
-              <div className="result-card-title-wrap">
-                <p className="result-card-badge">
-                  <UiIcon name={icon} />
-                  <span>{card.titleText}</span>
-                </p>
-              </div>
-            </header>
-            <div className="result-card-sections">
-              {card.sections.map((section, sectionIndex) => {
-                const listItems = toListItems(section.body);
-                return (
-                  <section key={`${card.key}-${section.title}-${sectionIndex}`} className="result-card-section">
-                    <h4>{section.title}</h4>
-                    {listItems.length > 1 ? (
-                      <ul className="result-section-list">
-                        {listItems.map((line, lineIndex) => (
-                          <li key={line + lineIndex}>{line}</li>
-                        ))}
+    <section className="panel strategy-board">
+      <header className="strategy-board-head">
+        <div>
+          <p className="overline">10개 카테고리 해석</p>
+          <h3>사주 전략보드</h3>
+        </div>
+        <button type="button" className="button secondary small" onClick={toggleAll}>
+          <IconLabel icon={allExpanded ? "back" : "play"}>
+            {allExpanded ? "전체 접기" : "전체 펼치기"}
+          </IconLabel>
+        </button>
+      </header>
+
+      <div className="result-cards strategy-card-list">
+        {cards.map((card, index) => {
+          const isExpanded = expandedSet.has(card.key);
+          const icon = RESULT_CARD_ICON_MAP[card.key];
+          const meta = RESULT_BOARD_META[card.key];
+          const highlights = buildStrategyHighlights(card);
+          const leadLine = card.sections[0] ? sectionLead(card.sections[0]) : card.body;
+          const sectionTitles = card.sections.slice(0, 5).map((section) => section.title);
+
+          return (
+            <article
+              key={card.key}
+              className={"result-card strategy-card" + (isExpanded ? " expanded" : "")}
+              data-card-key={card.key}
+            >
+              <button
+                type="button"
+                className="strategy-card-toggle"
+                onClick={() => toggleCard(card.key)}
+                aria-expanded={isExpanded}
+              >
+                <header className="result-card-header">
+                  <span className="result-card-index">{index + 1}</span>
+                  <div className="result-card-title-wrap">
+                    <p className="result-card-badge">
+                      <UiIcon name={icon} />
+                      <span>{card.titleText}</span>
+                    </p>
+                    <p className="strategy-card-subtitle">{meta.subtitle}</p>
+                  </div>
+                </header>
+                <span className={"strategy-card-chevron" + (isExpanded ? " open" : "")} aria-hidden="true">
+                  <UiIcon name="arrowRight" />
+                </span>
+              </button>
+
+              {isExpanded ? (
+                <div className="strategy-card-body">
+                  <div className="strategy-card-perspective">
+                    <p>{meta.perspective}</p>
+                    <div className="strategy-chip-row">
+                      {sectionTitles.map((sectionTitle) => (
+                        <span key={card.key + sectionTitle} className="strategy-chip">
+                          {sectionTitle}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="strategy-card-grid">
+                    <section className="strategy-card-block">
+                      <h4>핵심 해석</h4>
+                      <p>{leadLine}</p>
+                      {highlights.length > 0 ? (
+                        <ul className="strategy-highlight-list">
+                          {highlights.map((item, highlightIndex) => (
+                            <li key={item.text + highlightIndex}>
+                              <strong>{item.sectionTitle}</strong>
+                              <span>{item.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </section>
+
+                    <section className="strategy-card-block">
+                      <h4>실행 체크리스트</h4>
+                      <ul className="strategy-check-list">
+                        {(highlights.length > 0 ? highlights : [{ sectionTitle: "기본", text: leadLine }]).map(
+                          (item, checklistIndex) => (
+                            <li key={item.text + checklistIndex}>
+                              <UiIcon name="check" />
+                              <span>{item.text}</span>
+                            </li>
+                          )
+                        )}
                       </ul>
-                    ) : (
-                      <p className="card-body whitespace">{section.body}</p>
-                    )}
-                  </section>
-                );
-              })}
-            </div>
-          </article>
-        );
-      })}
-    </div>
+                    </section>
+                  </div>
+
+                  <div className="result-card-sections">
+                    {card.sections.map((section, sectionIndex) => {
+                      const listItems = toListItems(section.body);
+                      return (
+                        <section key={`${card.key}-${section.title}-${sectionIndex}`} className="result-card-section">
+                          <h4>{section.title}</h4>
+                          {listItems.length > 1 ? (
+                            <ul className="result-section-list">
+                              {listItems.map((line, lineIndex) => (
+                                <li key={line + lineIndex}>{line}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="card-body whitespace">{section.body}</p>
+                          )}
+                        </section>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ResultSelectionTrail({ session }: { session?: ConsultationSession }) {
+  const trailItems = useMemo(() => buildTrailItems(session), [session]);
+  const [expandedSteps, setExpandedSteps] = useState<number[]>([]);
+  const expandedSet = useMemo(() => new Set(expandedSteps), [expandedSteps]);
+
+  useEffect(() => {
+    setExpandedSteps([]);
+  }, [session?.id, trailItems.length]);
+
+  if (trailItems.length === 0) {
+    return null;
+  }
+
+  const allExpanded = expandedSteps.length === trailItems.length;
+
+  const toggleAll = () => {
+    if (allExpanded) {
+      setExpandedSteps([]);
+      return;
+    }
+    setExpandedSteps(trailItems.map((item) => item.step));
+  };
+
+  const toggleStep = (step: number) => {
+    setExpandedSteps((current) =>
+      current.includes(step) ? current.filter((entry) => entry !== step) : [...current, step]
+    );
+  };
+
+  return (
+    <section className="panel result-selection-panel">
+      <header className="strategy-board-head">
+        <div>
+          <p className="overline">내가 선택한 답변</p>
+          <h3>응답 흐름 (하단 정리)</h3>
+        </div>
+        <button type="button" className="button secondary small" onClick={toggleAll}>
+          <IconLabel icon={allExpanded ? "back" : "play"}>
+            {allExpanded ? "전체 접기" : "전체 펼치기"}
+          </IconLabel>
+        </button>
+      </header>
+
+      <ol className="result-selection-list">
+        {trailItems.map((item) => {
+          const isExpanded = expandedSet.has(item.step);
+          return (
+            <li key={item.step + item.prompt} className={"result-selection-item" + (isExpanded ? " expanded" : "")}>
+              <button
+                type="button"
+                className="result-selection-toggle"
+                onClick={() => toggleStep(item.step)}
+                aria-expanded={isExpanded}
+              >
+                <span className="journey-step">{item.step}</span>
+                <div className="result-selection-main">
+                  <p className="journey-prompt">{item.prompt}</p>
+                  <p className="journey-answer">{item.answer}</p>
+                </div>
+                <span className={"strategy-card-chevron" + (isExpanded ? " open" : "")} aria-hidden="true">
+                  <UiIcon name="arrowRight" />
+                </span>
+              </button>
+
+              {isExpanded ? (
+                <div className="result-selection-body">
+                  <p className="muted">선택한 답변 상세</p>
+                  <p className="card-body whitespace">{item.answer}</p>
+                  {item.tags.length > 0 ? (
+                    <div className="strategy-chip-row">
+                      {item.tags.map((tag) => (
+                        <span key={item.step + tag} className="strategy-chip">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
@@ -1985,6 +2234,7 @@ function ResultPage() {
 
       <ResultReportVisuals result={result} session={session} />
       <ResultCards result={result} />
+      <ResultSelectionTrail session={session} />
     </ScreenFrame>
   );
 }
@@ -2090,6 +2340,7 @@ function SharedPage() {
     >
       <ResultReportVisuals result={result} session={session} />
       <ResultCards result={result} />
+      <ResultSelectionTrail session={session} />
     </ScreenFrame>
   );
 }
