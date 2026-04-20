@@ -204,8 +204,97 @@ const TOPIC_PREVIEW_PALETTES: Record<TopicId, TopicPreviewPalette> = {
   }
 };
 
+function topicPreviewMotif(topicId: TopicId, palette: TopicPreviewPalette) {
+  const stroke = palette.line;
+
+  switch (topicId) {
+    case "romance":
+      return `
+  <path d="M70 103c0-20 16-36 36-36 13 0 24 7 30 18 6-11 17-18 30-18 20 0 36 16 36 36 0 33-33 53-66 79-33-26-66-46-66-79Z" fill="${stroke}" fill-opacity="0.84" />
+  <circle cx="106" cy="80" r="6" fill="#ffffff" fill-opacity="0.65" />`;
+    case "reunion":
+      return `
+  <g stroke="${stroke}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M41 74a35 35 0 0 1 58-23" fill="none" />
+    <path d="M100 40h18v18" />
+    <path d="M99 92a35 35 0 0 1-58 23" fill="none" />
+    <path d="M40 126H22v-18" />
+  </g>`;
+    case "marriage":
+      return `
+  <g stroke="${stroke}" stroke-width="8" fill="none">
+    <circle cx="58" cy="82" r="26" />
+    <circle cx="94" cy="82" r="26" />
+  </g>
+  <path d="M76 42h8M80 38v8" stroke="${stroke}" stroke-width="6" stroke-linecap="round" />`;
+    case "chemistry":
+      return `
+  <g stroke="${stroke}" stroke-width="7" fill="none">
+    <circle cx="56" cy="88" r="20" />
+    <circle cx="102" cy="70" r="24" />
+    <path d="M75 82c8-6 13-8 22-10" />
+  </g>
+  <circle cx="92" cy="106" r="7" fill="${stroke}" fill-opacity="0.7" />`;
+    case "relationships":
+      return `
+  <g stroke="${stroke}" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M36 98 68 70 102 90 74 114 36 98Z" />
+    <path d="M68 70V42" />
+  </g>
+  <g fill="${stroke}">
+    <circle cx="36" cy="98" r="7" />
+    <circle cx="68" cy="70" r="7" />
+    <circle cx="102" cy="90" r="7" />
+    <circle cx="74" cy="114" r="7" />
+    <circle cx="68" cy="42" r="7" />
+  </g>`;
+    case "family":
+      return `
+  <g fill="${stroke}" fill-opacity="0.86">
+    <circle cx="52" cy="72" r="13" />
+    <circle cx="88" cy="68" r="16" />
+    <circle cx="118" cy="76" r="12" />
+  </g>
+  <g stroke="${stroke}" stroke-width="7" fill="none" stroke-linecap="round">
+    <path d="M32 114c4-18 14-28 30-28 16 0 26 10 30 28" />
+    <path d="M76 114c4-22 16-34 34-34 16 0 24 11 28 34" />
+  </g>`;
+    case "career":
+      return `
+  <g fill="${stroke}" fill-opacity="0.84">
+    <rect x="36" y="88" width="16" height="28" rx="4" />
+    <rect x="58" y="76" width="16" height="40" rx="4" />
+    <rect x="80" y="62" width="16" height="54" rx="4" />
+    <rect x="102" y="50" width="16" height="66" rx="4" />
+  </g>
+  <path d="M36 58h38l10-10 20 20" stroke="${stroke}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none" />`;
+    case "money":
+      return `
+  <g fill="none" stroke="${stroke}" stroke-width="7" stroke-linejoin="round">
+    <ellipse cx="74" cy="60" rx="34" ry="12" />
+    <path d="M40 60v16c0 7 15 12 34 12s34-5 34-12V60" />
+    <path d="M40 76v16c0 7 15 12 34 12s34-5 34-12V76" />
+  </g>
+  <path d="M74 47v54M60 58h26M60 90h26" stroke="${stroke}" stroke-width="6" stroke-linecap="round" />`;
+    case "yearly":
+      return `
+  <rect x="38" y="40" width="76" height="76" rx="14" fill="none" stroke="${stroke}" stroke-width="7" />
+  <path d="M38 60h76M60 40v76M82 40v76" stroke="${stroke}" stroke-width="5" />
+  <circle cx="52" cy="74" r="6" fill="${stroke}" />
+  <circle cx="74" cy="74" r="6" fill="${stroke}" fill-opacity="0.66" />
+  <circle cx="96" cy="96" r="6" fill="${stroke}" fill-opacity="0.66" />`;
+    case "mind":
+      return `
+  <path d="M88 38c-24 4-42 24-42 48 0 18 10 34 25 43-28-3-50-27-50-56 0-31 25-56 56-56 4 0 8 0 11 1Z" fill="${stroke}" fill-opacity="0.78" />
+  <path d="M92 94c7 0 12-5 12-12s-5-12-12-12-12 5-12 12 5 12 12 12Zm-46 22c10-8 20-8 30 0 10 8 20 8 30 0" stroke="${stroke}" stroke-width="6" fill="none" stroke-linecap="round" />`;
+    default:
+      return "";
+  }
+}
+
 function buildTopicPreviewImage(topicId: TopicId) {
   const palette = TOPIC_PREVIEW_PALETTES[topicId];
+  const motif = topicPreviewMotif(topicId, palette);
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="520" height="300" viewBox="0 0 520 300" fill="none">
@@ -216,12 +305,26 @@ function buildTopicPreviewImage(topicId: TopicId) {
     </linearGradient>
   </defs>
   <rect width="520" height="300" rx="28" fill="url(#g)" />
-  <circle cx="422" cy="84" r="62" fill="${palette.orbA}" fill-opacity="0.72" />
-  <circle cx="98" cy="240" r="82" fill="${palette.orbB}" fill-opacity="0.68" />
-  <rect x="48" y="52" width="240" height="18" rx="9" fill="${palette.line}" fill-opacity="0.82" />
-  <rect x="48" y="84" width="182" height="12" rx="6" fill="${palette.line}" fill-opacity="0.56" />
-  <rect x="48" y="192" width="164" height="12" rx="6" fill="${palette.line}" fill-opacity="0.44" />
-  <rect x="48" y="216" width="124" height="12" rx="6" fill="${palette.line}" fill-opacity="0.34" />
+  <g opacity="0.2" stroke="${palette.line}" stroke-width="2">
+    <path d="M22 64h476" />
+    <path d="M22 114h476" />
+    <path d="M22 164h476" />
+    <path d="M22 214h476" />
+    <path d="M22 264h476" />
+  </g>
+  <rect x="36" y="38" width="246" height="224" rx="24" fill="#ffffff" fill-opacity="0.52" stroke="${palette.line}" stroke-opacity="0.25" />
+  <rect x="58" y="68" width="174" height="16" rx="8" fill="${palette.line}" fill-opacity="0.75" />
+  <rect x="58" y="96" width="142" height="11" rx="5.5" fill="${palette.line}" fill-opacity="0.42" />
+  <rect x="58" y="130" width="126" height="11" rx="5.5" fill="${palette.line}" fill-opacity="0.34" />
+  <rect x="58" y="184" width="154" height="13" rx="6.5" fill="${palette.line}" fill-opacity="0.24" />
+  <rect x="58" y="206" width="112" height="13" rx="6.5" fill="${palette.line}" fill-opacity="0.2" />
+  <g transform="translate(322 56)">
+    <rect width="156" height="156" rx="36" fill="${palette.orbA}" fill-opacity="0.74" />
+    <rect x="14" y="14" width="128" height="128" rx="30" fill="${palette.orbB}" fill-opacity="0.68" />
+    ${motif}
+  </g>
+  <circle cx="430" cy="242" r="38" fill="${palette.orbA}" fill-opacity="0.58" />
+  <circle cx="354" cy="232" r="22" fill="${palette.orbB}" fill-opacity="0.56" />
 </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -609,6 +712,28 @@ type ResultActionItem = {
 
 type ResultCardKey = ConsultationResult["cards"][number]["key"];
 
+type PremiumMetric = {
+  label: string;
+  score: number;
+  caption: string;
+};
+
+type PremiumChapter = {
+  id: string;
+  title: string;
+  subtitle: string;
+  summary: string;
+  insights: string[];
+  actions: string[];
+  checkpoints: string[];
+};
+
+type PremiumRoadmapPhase = {
+  phase: string;
+  focus: string;
+  tasks: string[];
+};
+
 const TAG_PREFIX_LABELS: Record<string, string> = {
   topic: "주제",
   stage: "관계 단계",
@@ -887,6 +1012,233 @@ function buildActionItems(card: ParsedResultCard | undefined, limit = 4): Result
 function buildQuickActionTexts(result: ConsultationResult, limit = 2) {
   const cards = parseResultCards(result.cards);
   return buildActionItems(cards.find((card) => card.key === "do"), limit).map((item) => item.text);
+}
+
+function uniqueLines(lines: string[]) {
+  return [...new Set(lines.map((line) => line.trim()).filter(Boolean))];
+}
+
+function cardLines(card: ParsedResultCard | undefined, limit = 8) {
+  if (!card) {
+    return [];
+  }
+
+  return uniqueLines(
+    card.sections.flatMap((section) => toListItems(section.body)).slice(0, limit * 2)
+  ).slice(0, limit);
+}
+
+function withFallback(lines: string[], fallback: string[], count: number) {
+  const picked = uniqueLines(lines);
+  if (picked.length >= count) {
+    return picked.slice(0, count);
+  }
+  return uniqueLines([...picked, ...fallback]).slice(0, count);
+}
+
+function buildPremiumMetrics(result: ConsultationResult, session?: ConsultationSession): PremiumMetric[] {
+  const base = buildResultMetrics(result, session);
+  const parsedCards = parseResultCards(result.cards);
+  const doCount = buildActionItems(parsedCards.find((card) => card.key === "do"), 8).length;
+  const dontCount = buildActionItems(parsedCards.find((card) => card.key === "dont"), 8).length;
+  const executionReadiness = Math.min(96, 48 + doCount * 9);
+  const lossControl = Math.max(38, 88 - dontCount * 8);
+
+  return [
+    {
+      label: base[0].label,
+      score: base[0].value,
+      caption: base[0].caption
+    },
+    {
+      label: base[1].label,
+      score: base[1].value,
+      caption: base[1].caption
+    },
+    {
+      label: base[2].label,
+      score: base[2].value,
+      caption: base[2].caption
+    },
+    {
+      label: "실행 준비도",
+      score: executionReadiness,
+      caption: `즉시 실행 항목 ${doCount}개 기준`
+    },
+    {
+      label: "손실 방어력",
+      score: lossControl,
+      caption: `주의 패턴 ${dontCount}개 반영`
+    }
+  ];
+}
+
+function buildPremiumChapters(result: ConsultationResult, session?: ConsultationSession): PremiumChapter[] {
+  const cards = parseResultCards(result.cards);
+  const cardByKey = (key: ResultCardKey) => cards.find((card) => card.key === key);
+  const summaryLines = cardLines(cardByKey("summary"), 8);
+  const flowLines = cardLines(cardByKey("currentFlow"), 8);
+  const selfLines = cardLines(cardByKey("self"), 8);
+  const otherLines = cardLines(cardByKey("other"), 8);
+  const structureLines = cardLines(cardByKey("structure"), 8);
+  const nearTermLines = cardLines(cardByKey("nearTerm"), 8);
+  const doLines = buildActionItems(cardByKey("do"), 10).map((item) => item.text);
+  const dontLines = buildActionItems(cardByKey("dont"), 10).map((item) => item.text);
+  const oneLine = cardLines(cardByKey("oneLine"), 6);
+  const followLines =
+    result.recommendedQuestions.length > 0 ? result.recommendedQuestions : cardLines(cardByKey("followUp"), 8);
+  const responseLines = session ? session.responses.map((entry) => entry.label) : [];
+
+  return [
+    {
+      id: "diagnosis",
+      title: "진단 총괄",
+      subtitle: "이번 리포트의 핵심 결론",
+      summary: withFallback(summaryLines, [result.summary], 1)[0] ?? result.summary,
+      insights: withFallback(summaryLines, [result.summary], 4),
+      actions: withFallback(doLines, ["지금 바로 적용할 한 가지 행동을 먼저 고정하세요."], 4),
+      checkpoints: withFallback(oneLine, ["이번 결론을 하루 한 번 소리 내어 점검하세요."], 3)
+    },
+    {
+      id: "flow",
+      title: "흐름 해부",
+      subtitle: "지금 흔들리는 원인과 진행축",
+      summary: withFallback(flowLines, ["현재 흐름의 병목과 가속 지점을 분리해 해석합니다."], 1)[0] ?? "",
+      insights: withFallback(flowLines, ["흐름은 감정보다 반복되는 패턴에서 결정됩니다."], 4),
+      actions: withFallback(nearTermLines, ["짧은 구간 목표를 먼저 고정하고 반응을 관찰하세요."], 4),
+      checkpoints: withFallback(dontLines, ["반응 하나로 전체 결론을 내리지 않기."], 3)
+    },
+    {
+      id: "self",
+      title: "내 상태 레이더",
+      subtitle: "내 감정·에너지·반응 패턴",
+      summary: withFallback(selfLines, ["내가 먼저 흔들리는 포인트를 찾아야 전략이 작동합니다."], 1)[0] ?? "",
+      insights: withFallback(selfLines, ["감정 소모 지점을 분리하면 판단 정확도가 올라갑니다."], 4),
+      actions: withFallback(doLines, ["지금 소모를 줄이는 기준 하나를 정하세요."], 4),
+      checkpoints: withFallback(responseLines, ["최근 답변 중 가장 불안했던 선택을 복기하세요."], 3)
+    },
+    {
+      id: "other",
+      title: "상대·환경 변수",
+      subtitle: "상대 속도와 외부 조건 분석",
+      summary: withFallback(otherLines, ["상대와 환경의 제약 조건을 분리해 읽어야 합니다."], 1)[0] ?? "",
+      insights: withFallback(otherLines, ["의도와 실행 속도를 따로 해석해야 오판이 줄어듭니다."], 4),
+      actions: withFallback(nearTermLines, ["상대 반응보다 조건 정렬을 먼저 점검하세요."], 4),
+      checkpoints: withFallback(followLines, ["내가 확인해야 할 사실 질문 1개를 먼저 정하세요."], 3)
+    },
+    {
+      id: "structure",
+      title: "구조 리스크 맵",
+      subtitle: "문제의 구조, 반복 패턴, 취약 지점",
+      summary: withFallback(structureLines, ["문제는 사건 하나보다 구조 반복에서 커집니다."], 1)[0] ?? "",
+      insights: withFallback(structureLines, ["패턴 단위로 나눠야 해결 우선순위가 명확해집니다."], 4),
+      actions: withFallback(doLines, ["구조를 끊는 행동 1개를 오늘 실행하세요."], 4),
+      checkpoints: withFallback(dontLines, ["익숙한 실패 패턴 재진입 여부를 점검하세요."], 3)
+    },
+    {
+      id: "scenario",
+      title: "근시기 시나리오 보드",
+      subtitle: "Best / Base / Risk 세 갈래 전망",
+      summary: withFallback(nearTermLines, ["가까운 시기에는 선택의 속도보다 정렬이 우선입니다."], 1)[0] ?? "",
+      insights: withFallback(
+        [
+          `Best: ${withFallback(doLines, ["핵심 행동이 유지될 때 안정적으로 개선됩니다."], 1)[0] ?? ""}`,
+          `Base: ${withFallback(nearTermLines, ["보수적 개선 흐름이 이어질 가능성이 큽니다."], 1)[0] ?? ""}`,
+          `Risk: ${withFallback(dontLines, ["반복 패턴을 방치하면 손실이 누적됩니다."], 1)[0] ?? ""}`
+        ],
+        ["Best/Base/Risk 조건을 분리해 대응 전략을 준비하세요."],
+        3
+      ),
+      actions: withFallback(doLines, ["시나리오별 대응 행동을 각각 1개씩 정하세요."], 4),
+      checkpoints: withFallback(followLines, ["시나리오를 가르는 질문 1개를 먼저 확인하세요."], 3)
+    },
+    {
+      id: "protocol",
+      title: "실행 프로토콜",
+      subtitle: "즉시 행동할 우선순위 플랜",
+      summary: withFallback(doLines, ["행동 순서를 고정하면 결과 변동성이 줄어듭니다."], 1)[0] ?? "",
+      insights: withFallback(doLines, ["실행은 작게 시작하고 반복으로 확장해야 합니다."], 4),
+      actions: withFallback(doLines, ["오늘 즉시 실행할 항목 1개를 완료하세요."], 4),
+      checkpoints: withFallback(oneLine, ["실행 후 결과를 짧게 기록해 루프를 닫으세요."], 3)
+    },
+    {
+      id: "risk-control",
+      title: "손실 방지 가이드",
+      subtitle: "피해야 할 패턴과 방어 규칙",
+      summary: withFallback(dontLines, ["손실은 대부분 반복 패턴에서 발생합니다."], 1)[0] ?? "",
+      insights: withFallback(dontLines, ["경계 문장을 먼저 정하면 오판 확률이 줄어듭니다."], 4),
+      actions: withFallback(doLines, ["위험 신호 감지 시 바로 멈출 규칙을 고정하세요."], 4),
+      checkpoints: withFallback(dontLines, ["오늘 다시 반복한 패턴이 있는지 확인하세요."], 3)
+    },
+    {
+      id: "decision",
+      title: "의사결정 매트릭스",
+      subtitle: "판단 기준 정렬과 선택 시뮬레이션",
+      summary: withFallback(oneLine, ["결정은 감정이 아니라 기준의 정렬에서 완성됩니다."], 1)[0] ?? "",
+      insights: withFallback(
+        [
+          "기준 1) 지속가능성: 이 선택을 3개월 유지할 수 있는가",
+          "기준 2) 관계비용: 내 감정·시간·에너지 비용이 감당 가능한가",
+          "기준 3) 회복가능성: 실패해도 복구 가능한가",
+          "기준 4) 확장성: 다음 단계로 이어지는가"
+        ],
+        ["판단 기준을 문장으로 고정하면 선택 속도가 빨라집니다."],
+        4
+      ),
+      actions: withFallback(doLines, ["선택지별 점수(1~5)를 직접 매겨 비교하세요."], 4),
+      checkpoints: withFallback(followLines, ["결정을 미루는 핵심 이유를 질문으로 분해하세요."], 3)
+    },
+    {
+      id: "expansion",
+      title: "후속 확장 리포트",
+      subtitle: "다음 상담에서 깊게 파고들 질문",
+      summary: withFallback(followLines, ["후속 질문이 많을수록 리포트 정밀도가 올라갑니다."], 1)[0] ?? "",
+      insights: withFallback(followLines, ["후속 질문은 다음 결정을 위한 레버리지입니다."], 4),
+      actions: withFallback(followLines, ["후속 질문 중 당장 필요한 2개를 우선 선택하세요."], 4),
+      checkpoints: withFallback(responseLines, ["기존 응답과 충돌하는 포인트를 다시 검증하세요."], 3)
+    }
+  ];
+}
+
+function buildPremiumRoadmap(result: ConsultationResult, session?: ConsultationSession): PremiumRoadmapPhase[] {
+  const cards = parseResultCards(result.cards);
+  const doLines = buildActionItems(cards.find((card) => card.key === "do"), 8).map((item) => item.text);
+  const dontLines = buildActionItems(cards.find((card) => card.key === "dont"), 8).map((item) => item.text);
+  const followLines =
+    result.recommendedQuestions.length > 0
+      ? result.recommendedQuestions
+      : cardLines(cards.find((card) => card.key === "followUp"), 6);
+  const responseLines = session ? session.responses.map((entry) => entry.label) : [];
+
+  return [
+    {
+      phase: "Phase 1 · 72시간",
+      focus: "불필요한 소모 차단과 기준 고정",
+      tasks: withFallback(
+        [...doLines, ...dontLines.map((line) => `중단 규칙: ${line}`)],
+        ["지금 바로 실행할 행동 1개와 멈출 행동 1개를 고정하세요."],
+        3
+      )
+    },
+    {
+      phase: "Phase 2 · 2주",
+      focus: "관찰 데이터 확보와 패턴 검증",
+      tasks: withFallback(
+        [...followLines, ...responseLines.map((line) => `응답 복기: ${line}`)],
+        ["2주 동안 변화 지표를 기록해 패턴을 검증하세요."],
+        3
+      )
+    },
+    {
+      phase: "Phase 3 · 4주",
+      focus: "결정 확정 및 전략 확장",
+      tasks: withFallback(
+        [...doLines, ...followLines.map((line) => `확장 질문: ${line}`)],
+        ["4주 시점에 유지할 전략과 버릴 전략을 분리하세요."],
+        3
+      )
+    }
+  ];
 }
 
 function sourceLabel(source: ConsultationResult["generationSource"]) {
@@ -1259,6 +1611,135 @@ function ResultSelectionTrail({ session }: { session?: ConsultationSession }) {
         })}
       </ol>
     </section>
+  );
+}
+
+function PremiumResultReport({
+  result,
+  session
+}: {
+  result: ConsultationResult;
+  session?: ConsultationSession;
+}) {
+  const metrics = useMemo(() => buildPremiumMetrics(result, session), [result, session]);
+  const chapters = useMemo(() => buildPremiumChapters(result, session), [result, session]);
+  const roadmap = useMemo(() => buildPremiumRoadmap(result, session), [result, session]);
+  const signalMap = useMemo(() => buildTagBreakdown(result.tags), [result.tags]);
+
+  return (
+    <>
+      <section className="panel premium-report-hero">
+        <p className="overline">Premium Saju Report</p>
+        <h3>{result.summary}</h3>
+        <p>
+          이번 리포트는 단정형 문장이 아니라 흐름, 구조, 실행, 리스크 통제를 하나의 전략 문서처럼 묶어
+          설계했습니다.
+        </p>
+      </section>
+
+      <section className="panel premium-metric-panel">
+        <header className="result-visual-head compact">
+          <p className="overline">정량 스코어카드</p>
+          <h3>핵심 상태 진단 지표</h3>
+        </header>
+        <div className="premium-metric-grid">
+          {metrics.map((metric) => (
+            <article key={metric.label} className="premium-metric-card">
+              <p className="premium-metric-label">{metric.label}</p>
+              <p className="premium-metric-value">{metric.score}</p>
+              <p className="premium-metric-caption">{metric.caption}</p>
+              <div className="metric-track" aria-hidden="true">
+                <span style={{ width: `${metric.score}%` }} />
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {signalMap.length > 0 ? (
+        <section className="panel premium-signal-panel">
+          <header className="result-visual-head compact">
+            <p className="overline">신호 포트폴리오</p>
+            <h3>응답 데이터 분포</h3>
+          </header>
+          <div className="signal-table">
+            {signalMap.map((item) => (
+              <div key={item.key} className="signal-row">
+                <div className="signal-label">
+                  <strong>{item.label}</strong>
+                  <small>{item.count}개</small>
+                </div>
+                <div className="signal-bar" aria-hidden="true">
+                  <span style={{ width: `${item.ratio}%` }} />
+                </div>
+                <span className="signal-ratio">{item.ratio}%</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="premium-chapter-list">
+        {chapters.map((chapter, index) => (
+          <article key={chapter.id} className="panel premium-chapter">
+            <header className="premium-chapter-head">
+              <div>
+                <p className="overline">Chapter {index + 1}</p>
+                <h3>{chapter.title}</h3>
+                <p>{chapter.subtitle}</p>
+              </div>
+            </header>
+            <p className="premium-chapter-summary">{chapter.summary}</p>
+            <div className="premium-chapter-grid">
+              <section className="premium-chapter-block">
+                <h4>핵심 인사이트</h4>
+                <ul className="premium-list">
+                  {chapter.insights.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </section>
+              <section className="premium-chapter-block">
+                <h4>실행 전략</h4>
+                <ul className="premium-list">
+                  {chapter.actions.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </section>
+              <section className="premium-chapter-block">
+                <h4>점검 질문</h4>
+                <ul className="premium-list">
+                  {chapter.checkpoints.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <section className="panel premium-roadmap-panel">
+        <header className="result-visual-head compact">
+          <p className="overline">4주 실행 로드맵</p>
+          <h3>단기 실행 설계</h3>
+        </header>
+        <div className="premium-roadmap-grid">
+          {roadmap.map((phase) => (
+            <article key={phase.phase} className="premium-roadmap-card">
+              <p className="premium-roadmap-phase">{phase.phase}</p>
+              <p className="premium-roadmap-focus">{phase.focus}</p>
+              <ul className="premium-list">
+                {phase.tasks.map((task) => (
+                  <li key={task}>{task}</li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -2157,18 +2638,12 @@ function ResultPage() {
   const result = results.find((entry) => entry.id === resultId);
   const session = sessions.find((entry) => entry.resultId === resultId);
   const [copied, setCopied] = useState<string | null>(null);
-  const [showFullReport, setShowFullReport] = useState(false);
-
-  useEffect(() => {
-    setShowFullReport(false);
-  }, [resultId]);
 
   if (!result || !session) {
     return <Navigate to="/archive" replace />;
   }
 
   const topic = topicById(result.topicId);
-  const quickActionTexts = buildQuickActionTexts(result, 2);
   const activeShare = session.shareToken
     ? useAppStore.getState().shares.find((share) => share.token === session.shareToken)
     : undefined;
@@ -2177,7 +2652,7 @@ function ResultPage() {
     <ScreenFrame
       eyebrow={topic.label}
       title={result.summary}
-      subtitle="핵심 카드와 행동 포인트를 확인하세요."
+      subtitle="고급 전략형 리포트를 기반으로 흐름·구조·실행 계획을 확인하세요."
       footer={
         <div className="action-stack">
           <button className="button primary" onClick={() => saveSession(session.id)}>
@@ -2226,27 +2701,6 @@ function ResultPage() {
           {result.accuracyNote ? <p className="accuracy-note">{result.accuracyNote}</p> : null}
         </div>
 
-      <div className="panel result-first-view">
-        <p className="overline">한눈에 보기</p>
-        <h3>{result.summary}</h3>
-        <ul className="plain-list">
-          {(quickActionTexts.length > 0
-            ? quickActionTexts
-            : ["결과 요약을 먼저 확인한 뒤 상세 리포트를 펼쳐서 읽어보세요."]).map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-        <button
-          type="button"
-          className="button secondary small"
-          onClick={() => setShowFullReport((current) => !current)}
-        >
-          <IconLabel icon={showFullReport ? "back" : "play"}>
-            {showFullReport ? "상세 리포트 접기" : "상세 리포트 펼치기"}
-          </IconLabel>
-        </button>
-      </div>
-
       {copied ? (
         <div className="panel highlight">
           <p className="overline">복사된 공유 링크</p>
@@ -2262,13 +2716,8 @@ function ResultPage() {
         </div>
       ) : null}
 
-      {showFullReport ? (
-        <>
-          <ResultReportVisuals result={result} session={session} />
-          <ResultCards result={result} />
-          <ResultSelectionTrail session={session} />
-        </>
-      ) : null}
+      <PremiumResultReport result={result} session={session} />
+      <ResultSelectionTrail session={session} />
     </ScreenFrame>
   );
 }
@@ -2372,8 +2821,7 @@ function SharedPage() {
         </Link>
       }
     >
-      <ResultReportVisuals result={result} session={session} />
-      <ResultCards result={result} />
+      <PremiumResultReport result={result} session={session} />
       <ResultSelectionTrail session={session} />
     </ScreenFrame>
   );
