@@ -75,6 +75,92 @@ function modeGuide(mode: ConsultationMode) {
     : "핵심 흐름과 즉시 실행 포인트를 빠르게 정리합니다.";
 }
 
+type TopicPreviewTemplate = {
+  summary: string;
+  points: string[];
+};
+
+const TOPIC_PREVIEW_TEMPLATES: Record<TopicId, TopicPreviewTemplate> = {
+  romance: {
+    summary: "관계 온도와 표현 속도를 확인합니다.",
+    points: ["감정 신호", "대화 타이밍", "지금 할 행동"]
+  },
+  reunion: {
+    summary: "재접점 가능성과 현실 변수를 봅니다.",
+    points: ["연락 흐름", "거리 요인", "재시도 시점"]
+  },
+  marriage: {
+    summary: "결혼 결정 전 체크 포인트를 정리합니다.",
+    points: ["관계 안정성", "현실 조건", "합의 기준"]
+  },
+  chemistry: {
+    summary: "상대 반응 패턴과 감정 온도를 읽습니다.",
+    points: ["호감 신호", "밀당 패턴", "관계 진전"]
+  },
+  relationships: {
+    summary: "대인관계에서 반복되는 긴장 지점을 봅니다.",
+    points: ["충돌 원인", "거리 조절", "관계 회복"]
+  },
+  family: {
+    summary: "가족 관계의 역할 부담과 감정 거리를 봅니다.",
+    points: ["역할 균형", "경계선", "대화 방식"]
+  },
+  career: {
+    summary: "일과 진로에서 우선순위를 빠르게 정리합니다.",
+    points: ["현재 리스크", "이동 시점", "실행 액션"]
+  },
+  money: {
+    summary: "수입·지출 흐름과 압박 지점을 파악합니다.",
+    points: ["지출 누수", "현금 흐름", "우선 정리"]
+  },
+  yearly: {
+    summary: "올해의 방향성과 집중 포인트를 정리합니다.",
+    points: ["상반기 흐름", "전환 구간", "핵심 과제"]
+  },
+  mind: {
+    summary: "현재 심리 상태와 회복 루트를 제시합니다.",
+    points: ["감정 상태", "소진 신호", "회복 루틴"]
+  }
+};
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "");
+  if (normalized.length !== 6) {
+    return { r: 3, g: 199, b: 90 };
+  }
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16)
+  };
+}
+
+function topicPreviewImage(topic: TopicDefinition) {
+  const { r, g, b } = hexToRgb(topic.accent);
+  const deep = `rgb(${Math.max(0, r - 24)}, ${Math.max(0, g - 30)}, ${Math.max(0, b - 24)})`;
+  const soft = `rgba(${r}, ${g}, ${b}, 0.2)`;
+  const strong = `rgb(${r}, ${g}, ${b})`;
+
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="300" viewBox="0 0 520 300" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="520" y2="300">
+      <stop offset="0%" stop-color="${soft}" />
+      <stop offset="100%" stop-color="${strong}" />
+    </linearGradient>
+  </defs>
+  <rect width="520" height="300" rx="28" fill="url(#g)" />
+  <circle cx="420" cy="88" r="58" fill="${soft}" />
+  <circle cx="98" cy="240" r="82" fill="${soft}" />
+  <rect x="48" y="52" width="240" height="18" rx="9" fill="${deep}" fill-opacity="0.82" />
+  <rect x="48" y="84" width="182" height="12" rx="6" fill="${deep}" fill-opacity="0.56" />
+  <rect x="48" y="192" width="164" height="12" rx="6" fill="${deep}" fill-opacity="0.5" />
+  <rect x="48" y="216" width="124" height="12" rx="6" fill="${deep}" fill-opacity="0.4" />
+</svg>`;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 function cloudAuthLabel(provider: CloudAuthProvider | null) {
   switch (provider) {
     case "kakao":
@@ -934,6 +1020,9 @@ export function App() {
 function LandingPage() {
   const navigate = useNavigate();
   const sessions = useAppStore((state) => state.sessions);
+  const cloudAuthProvider = useAppStore((state) => state.cloudAuthProvider);
+  const cloudUserEmail = useAppStore((state) => state.cloudUserEmail);
+  const signInKakao = useAppStore((state) => state.signInKakao);
   const activeSession = useMemo(() => {
     return [...sessions]
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -962,6 +1051,26 @@ function LandingPage() {
         <button className="button primary landing-start-button" onClick={() => navigate("/topics")}>
           <IconLabel icon="play">시작하기</IconLabel>
         </button>
+        <div className="landing-login-panel">
+          <p>로그인하면 저장한 데이터 기준으로 오늘의 운세를 이어서 볼 수 있어요.</p>
+          {isSupabaseConfigured ? (
+            cloudAuthProvider === "kakao" ? (
+              <span className="landing-login-state">
+                <UiIcon name="check" />
+                카카오 로그인 완료{cloudUserEmail ? ` · ${cloudUserEmail}` : ""}
+              </span>
+            ) : (
+              <button className="button kakao" onClick={() => void signInKakao()} type="button">
+                <IconLabel icon="link">카카오 로그인</IconLabel>
+              </button>
+            )
+          ) : (
+            <span className="landing-login-state muted">
+              <UiIcon name="notice" />
+              로그인 연동 설정이 필요합니다.
+            </span>
+          )}
+        </div>
         {activeSession ? (
           <button className="button ghost" onClick={() => navigate(sessionPath(activeSession))}>
             <IconLabel icon="archive">이어서 하기</IconLabel>
@@ -1211,8 +1320,11 @@ function TopicHomePage() {
   const sessions = useAppStore((state) => state.sessions);
   const startSession = useAppStore((state) => state.startSession);
   const [selectedMode, setSelectedMode] = useState<ConsultationMode>(consultMode);
-  const [topicCursor, setTopicCursor] = useState(0);
-  const selectedTopic = TOPICS[topicCursor] ?? TOPICS[0];
+  const [selectedTopicId, setSelectedTopicId] = useState<TopicId>(TOPICS[0].id);
+  const selectedTopic = useMemo(
+    () => TOPICS.find((topic) => topic.id === selectedTopicId) ?? TOPICS[0],
+    [selectedTopicId]
+  );
 
   useEffect(() => {
     setSelectedMode(consultMode);
@@ -1232,10 +1344,6 @@ function TopicHomePage() {
     [selectedMode, selectedTopic.id, sessions]
   );
 
-  const moveTopicCursor = (delta: number) => {
-    setTopicCursor((current) => (current + delta + TOPICS.length) % TOPICS.length);
-  };
-
   const launchSelectedTopic = (forceRestart = false) => {
     const session = startSession(selectedTopic.id, forceRestart, selectedMode);
     navigate(sessionPath(session));
@@ -1246,7 +1354,7 @@ function TopicHomePage() {
       className="topic-worldcup-screen"
       hideNav
       title="바로 선택하고 시작하세요."
-      subtitle="상담 방식과 주제만 고르면 됩니다."
+      subtitle="상담 방식 1개, 주제 1개만 고르면 바로 시작됩니다."
       footer={
         <div className="topic-worldcup-actions">
           {selectedOpenSession ? (
@@ -1317,38 +1425,63 @@ function TopicHomePage() {
 
         <div className="worldcup-choice-group">
           <h3>상담 주제</h3>
-          <div className="worldcup-topic-picker">
-            <button
-              className="worldcup-topic-nav"
-              onClick={() => moveTopicCursor(-1)}
-              type="button"
-              title="이전 주제"
-            >
-              <UiIcon name="back" />
-            </button>
-            <article className={"worldcup-topic-focus topic-tone-" + selectedTopic.id}>
-              <div className="worldcup-topic-head">
-                <span className="topic-dot" style={{ backgroundColor: selectedTopic.accent }} />
-                <strong>{selectedTopic.label}</strong>
-              </div>
-              <p>{selectedTopic.shortBlurb}</p>
-              <div className="worldcup-topic-meta-inline">
-                <span>{modeQuestionRange(selectedMode)}</span>
-                <span>약 {modeEstimatedMinutes(selectedTopic, selectedMode)}분</span>
-              </div>
-            </article>
-            <button
-              className="worldcup-topic-nav"
-              onClick={() => moveTopicCursor(1)}
-              type="button"
-              title="다음 주제"
-            >
-              <UiIcon name="arrowRight" />
-            </button>
+          <div className="worldcup-topic-list">
+            {TOPICS.map((topic) => {
+              const preview = TOPIC_PREVIEW_TEMPLATES[topic.id];
+              return (
+                <button
+                  key={topic.id}
+                  className={
+                    "worldcup-topic-card topic-tone-" +
+                    topic.id +
+                    (selectedTopic.id === topic.id ? " active" : "")
+                  }
+                  onClick={() => setSelectedTopicId(topic.id)}
+                  type="button"
+                >
+                  <img
+                    className="worldcup-topic-image"
+                    src={topicPreviewImage(topic)}
+                    alt={`${topic.label} 주제 미리보기`}
+                    loading="lazy"
+                  />
+                  <div className="worldcup-topic-content">
+                    <div className="worldcup-topic-head">
+                      <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
+                      <strong>{topic.label}</strong>
+                    </div>
+                    <p>{topic.shortBlurb}</p>
+                    <div className="worldcup-topic-meta-inline">
+                      <span>{modeQuestionRange(selectedMode)}</span>
+                      <span>약 {modeEstimatedMinutes(topic, selectedMode)}분</span>
+                    </div>
+                    <p className="worldcup-topic-report-title">{preview.summary}</p>
+                    <ul className="worldcup-topic-report-list">
+                      {preview.points.map((point) => (
+                        <li key={point}>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          <p className="worldcup-topic-index">
-            {topicCursor + 1} / {TOPICS.length}
-          </p>
+          <div className="worldcup-selected-summary">
+            <strong>선택됨</strong>
+            <span>
+              {selectedTopic.label} · {modeLabel(selectedMode)}
+            </span>
+            <span>
+              {modeQuestionRange(selectedMode)} · 약 {modeEstimatedMinutes(selectedTopic, selectedMode)}분
+            </span>
+          </div>
+          {selectedOpenSession ? (
+            <div className="worldcup-resume-note">
+              <IconLabel icon="archive">
+                같은 주제로 진행 중인 상담이 있어 이어서 시작할 수 있습니다.
+              </IconLabel>
+            </div>
+          ) : null}
         </div>
       </section>
     </ScreenFrame>
