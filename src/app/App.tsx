@@ -1332,6 +1332,14 @@ function TopicHomePage() {
     () => TOPICS.find((topic) => topic.id === selectedTopicId) ?? TOPICS[0],
     [selectedTopicId]
   );
+  const topicPreviewImages = useMemo(
+    () =>
+      TOPICS.reduce<Record<TopicId, string>>((acc, topic) => {
+        acc[topic.id] = topicPreviewImage(topic);
+        return acc;
+      }, {} as Record<TopicId, string>),
+    []
+  );
 
   useEffect(() => {
     setSelectedMode(consultMode);
@@ -1352,11 +1360,17 @@ function TopicHomePage() {
   );
 
   const launchSelectedTopic = (forceRestart = false) => {
-    const session = startSession(selectedTopic.id, forceRestart, selectedMode);
-    if (!session) {
-      return;
+    try {
+      const session = startSession(selectedTopic.id, forceRestart, selectedMode);
+      if (!session) {
+        return;
+      }
+      navigate(sessionPath(session));
+    } catch {
+      useAppStore.setState({
+        lastError: "상담 시작 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+      });
     }
-    navigate(sessionPath(session));
   };
 
   return (
@@ -1451,7 +1465,7 @@ function TopicHomePage() {
                 >
                   <img
                     className="worldcup-topic-image"
-                    src={topicPreviewImage(topic)}
+                    src={topicPreviewImages[topic.id]}
                     alt={`${topic.label} 주제 미리보기`}
                     loading="lazy"
                   />
@@ -1534,11 +1548,17 @@ function SessionPage() {
             <button
               className="button primary"
               onClick={() => {
-                const next = startSession(session.topicId, true, session.consultMode);
-                if (!next) {
-                  return;
+                try {
+                  const next = startSession(session.topicId, true, session.consultMode);
+                  if (!next) {
+                    return;
+                  }
+                  navigate(sessionPath(next), { replace: true });
+                } catch {
+                  useAppStore.setState({
+                    lastError: "세션 재시작 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+                  });
                 }
-                navigate(sessionPath(next), { replace: true });
               }}
             >
               <IconLabel icon="play">현재 버전으로 다시 시작</IconLabel>

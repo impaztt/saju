@@ -2,8 +2,18 @@ import type { ShareRecord } from "../types";
 
 const SHARE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
+function safeTokenSeed() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID().replace(/-/g, "");
+  }
+
+  const random = Math.random().toString(36).slice(2);
+  const timestamp = Date.now().toString(36);
+  return `${timestamp}${random}`;
+}
+
 export function createShareToken() {
-  return crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  return safeTokenSeed().slice(0, 16);
 }
 
 export function buildSharePath(token: string) {

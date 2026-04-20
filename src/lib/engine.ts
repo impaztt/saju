@@ -23,8 +23,18 @@ function unique<T>(items: T[]) {
   return Array.from(new Set(items));
 }
 
+function safeRandomUuid() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  const random = Math.random().toString(36).slice(2, 10);
+  const timestamp = Date.now().toString(36);
+  return `${timestamp}-${random}`;
+}
+
 function makeId(prefix: string) {
-  return prefix + "-" + crypto.randomUUID();
+  return prefix + "-" + safeRandomUuid();
 }
 
 function section(title: string, body: string) {
@@ -43,34 +53,48 @@ export function getNode(flow: TopicFlow, nodeId: string | null) {
   return flow.nodes.find((candidate) => candidate.id === nodeId);
 }
 
-function getRemainingDepth(
-  session: ConsultationSession,
-  flow: TopicFlow,
-  nodeId: string | null,
-  seen = new Set<string>()
-): number {
-  if (!nodeId || seen.has(nodeId)) {
-    return 0;
-  }
+function getRemainingDepth(session: ConsultationSession, flow: TopicFlow, nodeId: string | null): number {
+  const memo = new Map<string, number>();
 
-  const node = getNode(flow, nodeId);
+  const walk = (targetNodeId: string | null, visiting: Set<string>): number => {
+    if (!targetNodeId) {
+      return 0;
+    }
 
-  if (!node) {
-    return 0;
-  }
+    if (memo.has(targetNodeId)) {
+      return memo.get(targetNodeId) ?? 0;
+    }
 
-  const nextSeen = new Set(seen);
-  nextSeen.add(nodeId);
+    if (visiting.has(targetNodeId)) {
+      return 0;
+    }
 
-  const optionDepths: number[] = node.options.map((option) =>
-    getRemainingDepth(session, flow, option.next, nextSeen)
-  );
-  const matchedRule = node.branchRules?.find((rule) =>
-    rule.when.every((condition) => conditionMatches(session, condition))
-  );
-  const branchDepth = matchedRule ? getRemainingDepth(session, flow, matchedRule.next, nextSeen) : 0;
+    const node = getNode(flow, targetNodeId);
+    if (!node) {
+      return 0;
+    }
 
-  return 1 + Math.max(0, ...optionDepths, branchDepth);
+    const nextVisiting = new Set(visiting);
+    nextVisiting.add(targetNodeId);
+
+    const nextIds = new Set<string | null>();
+    node.options.forEach((option) => {
+      nextIds.add(option.next);
+    });
+    const matchedRule = node.branchRules?.find((rule) =>
+      rule.when.every((condition) => conditionMatches(session, condition))
+    );
+    if (matchedRule) {
+      nextIds.add(matchedRule.next);
+    }
+
+    const depths = Array.from(nextIds).map((nextId) => walk(nextId, nextVisiting));
+    const depth = 1 + Math.max(0, ...depths);
+    memo.set(targetNodeId, depth);
+    return depth;
+  };
+
+  return walk(nodeId, new Set<string>());
 }
 
 export function getProgressPercent(session: ConsultationSession) {
