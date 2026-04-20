@@ -6,3 +6,8 @@ dist
 vite.config.js
 vite.config.d.ts
 node_modules
+.env.local
+.env.*.local
+.idea/
+.devserver-*.log
+.devserver-*.err.log
