@@ -933,147 +933,41 @@ export function App() {
 
 function LandingPage() {
   const navigate = useNavigate();
-  const cloudAuthProvider = useAppStore((state) => state.cloudAuthProvider);
-  const signInKakao = useAppStore((state) => state.signInKakao);
-  const startSession = useAppStore((state) => state.startSession);
   const sessions = useAppStore((state) => state.sessions);
-  const results = useAppStore((state) => state.results);
-
-  const activeSession = useMemo(
-    () =>
-      [...sessions]
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        .find(
-          (session) =>
-            ["draft", "review", "loading"].includes(session.status) &&
-            session.compatibility !== "outdated"
-        ),
-    [sessions]
-  );
-
-  const latestResult = useMemo(
-    () =>
-      [...results]
-        .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt))
-        .find(Boolean) ?? null,
-    [results]
-  );
+  const activeSession = useMemo(() => {
+    return [...sessions]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .find(
+        (session) =>
+          ["draft", "review", "loading"].includes(session.status) &&
+          session.compatibility !== "outdated"
+      );
+  }, [sessions]);
 
   return (
     <ScreenFrame
-      className="landing-screen landing-dashboard"
+      className="landing-screen landing-onepage"
       hideNav
       hideHeader
       hideTopbar
       title="온결 사주"
     >
-      <section className="landing-dashboard-hero">
+      <section className="landing-onepage-main">
         <p className="landing-kicker">온결 사주</p>
-        <h1>오늘의 흐름, 바로 시작</h1>
-        <p>주제를 고르고 질문에 답하면 지금 필요한 해석과 실행 포인트를 바로 확인할 수 있어요.</p>
-        <button className="landing-search-cta" onClick={() => navigate("/topics")} type="button">
-          <UiIcon name="spark" />
-          <span>지금 상담 시작하기</span>
-          <UiIcon name="arrowRight" />
-        </button>
+        <h1>오늘의 흐름을 빠르게 확인하세요</h1>
+        <p>질문에 답하면 지금 필요한 해석과 실행 포인트를 바로 정리해 드려요.</p>
       </section>
 
-      <section className="landing-quick-actions">
-        <button className="landing-quick-button" onClick={() => navigate("/topics")} type="button">
-          <UiIcon name="play" />
-          <span>새 상담</span>
+      <div className="landing-onepage-actions">
+        <button className="button primary landing-start-button" onClick={() => navigate("/topics")}>
+          <IconLabel icon="play">시작하기</IconLabel>
         </button>
-        <button className="landing-quick-button" onClick={() => navigate("/archive")} type="button">
-          <UiIcon name="archive" />
-          <span>결과 보관함</span>
-        </button>
-        <button className="landing-quick-button" onClick={() => navigate("/profile")} type="button">
-          <UiIcon name="profile" />
-          <span>프로필 편집</span>
-        </button>
-        <button className="landing-quick-button" onClick={() => navigate("/settings")} type="button">
-          <UiIcon name="settings" />
-          <span>동기화 설정</span>
-        </button>
-      </section>
-
-      {activeSession ? (
-        <button
-          className="landing-continue-card"
-          onClick={() => navigate(sessionPath(activeSession))}
-          type="button"
-        >
-          <div>
-            <p className="overline">이어 하기</p>
-            <h3>
-              {topicById(activeSession.topicId).label} · {modeLabel(activeSession.consultMode)}
-            </h3>
-            <p>
-              {activeSession.responses.length}개 응답 완료 · 마지막 갱신{" "}
-              {formatDateTime(activeSession.updatedAt)}
-            </p>
-          </div>
-          <UiIcon name="arrowRight" />
-        </button>
-      ) : null}
-
-      <section className="landing-topic-recommend">
-        <header className="landing-section-head">
-          <h3>바로 선택 가능한 주제</h3>
-          <button className="button ghost small" onClick={() => navigate("/topics")} type="button">
-            전체 보기
-          </button>
-        </header>
-        <div className="landing-topic-grid-modern">
-          {TOPICS.slice(0, 6).map((topic) => (
-            <button
-              key={topic.id}
-              className="landing-topic-card"
-              onClick={() => {
-                const session = startSession(topic.id, false, "quick");
-                navigate(sessionPath(session));
-              }}
-              type="button"
-            >
-              <div className="landing-topic-card-head">
-                <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
-                <strong>{topic.label}</strong>
-              </div>
-              <p>{topic.shortBlurb}</p>
-              <div className="topic-meta">
-                <span>빠른 상담</span>
-                <span>약 {topic.estimatedMinutes}분</span>
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {latestResult ? (
-        <button
-          className="landing-result-card"
-          onClick={() => navigate(resultPath(latestResult.id))}
-          type="button"
-        >
-          <div>
-            <p className="overline">최근 결과</p>
-            <h3>{latestResult.summary}</h3>
-            <p>
-              {topicById(latestResult.topicId).label} · {formatDateTime(latestResult.generatedAt)}
-            </p>
-          </div>
-          <UiIcon name="arrowRight" />
-        </button>
-      ) : null}
-
-      <section className="landing-account-row">
-        <p>클라우드 연동을 켜면 기기 변경 시에도 진행 기록을 그대로 이어갈 수 있어요.</p>
-        {isSupabaseConfigured && cloudAuthProvider !== "kakao" ? (
-          <button className="button secondary small" onClick={() => void signInKakao()}>
-            <IconLabel icon="link">카카오 로그인 연동</IconLabel>
+        {activeSession ? (
+          <button className="button ghost" onClick={() => navigate(sessionPath(activeSession))}>
+            <IconLabel icon="archive">이어서 하기</IconLabel>
           </button>
         ) : null}
-      </section>
+      </div>
     </ScreenFrame>
   );
 }
@@ -1317,11 +1211,8 @@ function TopicHomePage() {
   const sessions = useAppStore((state) => state.sessions);
   const startSession = useAppStore((state) => state.startSession);
   const [selectedMode, setSelectedMode] = useState<ConsultationMode>(consultMode);
-  const [selectedTopicId, setSelectedTopicId] = useState<TopicId>(TOPICS[0].id);
-  const selectedTopic = useMemo(
-    () => TOPICS.find((topic) => topic.id === selectedTopicId) ?? TOPICS[0],
-    [selectedTopicId]
-  );
+  const [topicCursor, setTopicCursor] = useState(0);
+  const selectedTopic = TOPICS[topicCursor] ?? TOPICS[0];
 
   useEffect(() => {
     setSelectedMode(consultMode);
@@ -1341,6 +1232,10 @@ function TopicHomePage() {
     [selectedMode, selectedTopic.id, sessions]
   );
 
+  const moveTopicCursor = (delta: number) => {
+    setTopicCursor((current) => (current + delta + TOPICS.length) % TOPICS.length);
+  };
+
   const launchSelectedTopic = (forceRestart = false) => {
     const session = startSession(selectedTopic.id, forceRestart, selectedMode);
     navigate(sessionPath(session));
@@ -1354,20 +1249,17 @@ function TopicHomePage() {
       subtitle="상담 방식과 주제만 고르면 됩니다."
       footer={
         <div className="topic-worldcup-actions">
-          <Link className="button ghost" to="/profile">
-            <IconLabel icon="profile">프로필</IconLabel>
-          </Link>
           {selectedOpenSession ? (
             <>
               <button
-                className="button secondary"
+                className="button primary"
                 onClick={() => launchSelectedTopic(false)}
                 type="button"
               >
                 <IconLabel icon="play">이어서 시작</IconLabel>
               </button>
               <button
-                className="button primary"
+                className="button ghost"
                 onClick={() => launchSelectedTopic(true)}
                 type="button"
               >
@@ -1425,345 +1317,38 @@ function TopicHomePage() {
 
         <div className="worldcup-choice-group">
           <h3>상담 주제</h3>
-          <div className="worldcup-topic-grid">
-            {TOPICS.map((topic) => (
-              <button
-                key={topic.id}
-                className={
-                  "worldcup-topic-card topic-tone-" +
-                  topic.id +
-                  (selectedTopic.id === topic.id ? " active" : "")
-                }
-                onClick={() => setSelectedTopicId(topic.id)}
-                type="button"
-              >
-                <div className="worldcup-topic-head">
-                  <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
-                  <strong>{topic.label}</strong>
-                </div>
-                <div className="worldcup-topic-meta">
-                  <span>{modeQuestionRange(selectedMode)}</span>
-                  <span>약 {modeEstimatedMinutes(topic, selectedMode)}분</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {selectedOpenSession ? (
-          <div className="worldcup-resume-note">
-            <IconLabel icon="archive">
-              진행 중인 상담이 있어요. 이어서 시작하거나 새로 시작할 수 있습니다.
-            </IconLabel>
-          </div>
-        ) : null}
-      </section>
-    </ScreenFrame>
-  );
-}
-
-function TopicHomePageLegacy() {
-  const navigate = useNavigate();
-  const consultMode = useAppStore((state) => state.consultMode);
-  const setConsultMode = useAppStore((state) => state.setConsultMode);
-  const sessions = useAppStore((state) => state.sessions);
-  const results = useAppStore((state) => state.results);
-  const startSession = useAppStore((state) => state.startSession);
-  const [stage, setStage] = useState<0 | 1 | 2>(0);
-  const [selectedMode, setSelectedMode] = useState<ConsultationMode>(consultMode);
-  const [selectedTopicId, setSelectedTopicId] = useState<TopicId>(TOPICS[0].id);
-  const selectedTopic = useMemo(
-    () => TOPICS.find((topic) => topic.id === selectedTopicId) ?? TOPICS[0],
-    [selectedTopicId]
-  );
-  const stageLabels = ["방식", "주제", "확인"] as const;
-
-  useEffect(() => {
-    setSelectedMode(consultMode);
-  }, [consultMode]);
-
-  useEffect(() => {
-    if (!TOPICS.some((topic) => topic.id === selectedTopicId)) {
-      setSelectedTopicId(TOPICS[0].id);
-    }
-  }, [selectedTopicId]);
-
-  const selectedOpenSession = useMemo(
-    () =>
-      [...sessions]
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        .find(
-          (session) =>
-            session.topicId === selectedTopic.id &&
-            session.consultMode === selectedMode &&
-            ["draft", "review", "loading"].includes(session.status) &&
-            session.compatibility !== "outdated"
-        ),
-    [selectedMode, selectedTopic.id, sessions]
-  );
-
-  const selectedLatestResult = useMemo(() => {
-    const latestCompleted = [...sessions]
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .find(
-        (session) =>
-          session.topicId === selectedTopic.id &&
-          session.consultMode === selectedMode &&
-          session.status === "result" &&
-          Boolean(session.resultId) &&
-          session.compatibility !== "outdated"
-      );
-
-    if (!latestCompleted?.resultId) {
-      return null;
-    }
-
-    return results.find((result) => result.id === latestCompleted.resultId) ?? null;
-  }, [results, selectedMode, selectedTopic.id, sessions]);
-
-  const launchSelectedTopic = (forceRestart = false) => {
-    const session = startSession(selectedTopic.id, forceRestart, selectedMode);
-    navigate(sessionPath(session));
-  };
-
-  const moveStage = (delta: -1 | 1) => {
-    setStage((current) => {
-      if (delta > 0) {
-        return (Math.min(2, current + 1) as 0 | 1 | 2);
-      }
-      return (Math.max(0, current - 1) as 0 | 1 | 2);
-    });
-  };
-
-  return (
-    <ScreenFrame
-      className="topic-flow-screen"
-      hideNav
-      eyebrow="주제 선택"
-      title="한 번에 고르고 바로 시작"
-      subtitle="토스처럼 빠르게, 배민처럼 직관적으로 주제와 상담 깊이를 선택해 보세요."
-    >
-      <section className="topic-flow-shell">
-        <div className="topic-flow-progress modern">
-          {stageLabels.map((label, index) => (
+          <div className="worldcup-topic-picker">
             <button
-              key={label}
-              className={
-                "topic-flow-step" +
-                (stage === index ? " active" : "") +
-                (stage > index ? " completed" : "")
-              }
-              onClick={() => setStage(index as 0 | 1 | 2)}
+              className="worldcup-topic-nav"
+              onClick={() => moveTopicCursor(-1)}
               type="button"
+              title="이전 주제"
             >
-              <small>STEP {index + 1}</small>
-              <strong>{label}</strong>
-              <span>{index === 0 ? modeLabel(selectedMode) : index === 1 ? selectedTopic.label : "검토"}</span>
+              <UiIcon name="back" />
             </button>
-          ))}
-        </div>
-
-        <div className="topic-flow-selection-bar modern">
-          <span className="selection-pill">
-            <UiIcon name="clock" />
-            {modeLabel(selectedMode)}
-          </span>
-          <span className="selection-pill">
-            <UiIcon name="spark" />
-            {selectedTopic.label}
-          </span>
-          <span className="selection-pill">
-            <UiIcon name="chart" />
-            {modeQuestionRange(selectedMode)}
-          </span>
-        </div>
-
-        <div className="topic-flow-stage">
-          {stage === 0 ? (
-            <>
-              <div className="topic-flow-head">
-                <p className="overline">1단계</p>
-                <h3>먼저 상담 깊이를 선택하세요</h3>
-                <p>{modeGuide(selectedMode)}</p>
+            <article className={"worldcup-topic-focus topic-tone-" + selectedTopic.id}>
+              <div className="worldcup-topic-head">
+                <span className="topic-dot" style={{ backgroundColor: selectedTopic.accent }} />
+                <strong>{selectedTopic.label}</strong>
               </div>
-              <div className="mode-flow-grid modern">
-                {([
-                  {
-                    id: "quick",
-                    title: "간단하게 보기",
-                    detail: "9문항 · 핵심 흐름과 우선순위 정리",
-                    icon: "clock"
-                  },
-                  {
-                    id: "focused",
-                    title: "집중해서 보기",
-                    detail: "22문항 · 맥락, 패턴, 제약까지 심층 분석",
-                    icon: "chart"
-                  }
-                ] as const).map((modeOption) => (
-                  <button
-                    key={modeOption.id}
-                    className={
-                      "mode-flow-option" + (selectedMode === modeOption.id ? " active" : "")
-                    }
-                    onClick={() => {
-                      setSelectedMode(modeOption.id);
-                      setConsultMode(modeOption.id);
-                    }}
-                    type="button"
-                  >
-                    <span className="mode-flow-icon" aria-hidden="true">
-                      <UiIcon name={modeOption.icon} />
-                    </span>
-                    <div>
-                      <strong>{modeOption.title}</strong>
-                      <span>{modeOption.detail}</span>
-                      <small>
-                        예상 소요 {modeOption.id === "focused" ? "12~15분" : "4~6분"} ·{" "}
-                        {modeOption.id === "focused" ? "깊은 상담" : "빠른 진단"}
-                      </small>
-                    </div>
-                  </button>
-                ))}
+              <p>{selectedTopic.shortBlurb}</p>
+              <div className="worldcup-topic-meta-inline">
+                <span>{modeQuestionRange(selectedMode)}</span>
+                <span>약 {modeEstimatedMinutes(selectedTopic, selectedMode)}분</span>
               </div>
-            </>
-          ) : null}
-
-          {stage === 1 ? (
-            <>
-              <div className="topic-flow-head">
-                <p className="overline">2단계</p>
-                <h3>원하는 주제를 바로 선택하세요</h3>
-                <p>전체 목록에서 한눈에 비교하고, 가장 맞는 주제를 선택할 수 있습니다.</p>
-              </div>
-              <div className="topic-catalog-layout">
-                <div className="topic-catalog-grid">
-                  {TOPICS.map((topic) => {
-                    const active = selectedTopic.id === topic.id;
-                    return (
-                      <button
-                        key={topic.id}
-                        className={"topic-catalog-card topic-tone-" + topic.id + (active ? " active" : "")}
-                        onClick={() => setSelectedTopicId(topic.id)}
-                        type="button"
-                      >
-                        <div className="topic-catalog-head">
-                          <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
-                          <strong>{topic.label}</strong>
-                        </div>
-                        <p>{topic.shortBlurb}</p>
-                        <div className="topic-catalog-meta">
-                          <span>{modeQuestionRange(selectedMode)}</span>
-                          <span>약 {modeEstimatedMinutes(topic, selectedMode)}분</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <article className={"topic-focus topic-tone-" + selectedTopic.id}>
-                  <div className="topic-focus-title">
-                    <span className="topic-dot" style={{ backgroundColor: selectedTopic.accent }} />
-                    <strong>{selectedTopic.label}</strong>
-                  </div>
-                  <p>{selectedTopic.description}</p>
-                  <div className="topic-focus-meta">
-                    <span>{modeQuestionRange(selectedMode)}</span>
-                    <span>약 {modeEstimatedMinutes(selectedTopic, selectedMode)}분</span>
-                  </div>
-                  <p className="topic-focus-result">{selectedTopic.featuredPrompt}</p>
-                  {selectedLatestResult ? (
-                    <p className="topic-focus-result">최근 흐름: {selectedLatestResult.summary}</p>
-                  ) : null}
-                </article>
-              </div>
-            </>
-          ) : null}
-
-          {stage === 2 ? (
-            <>
-              <div className="topic-flow-head">
-                <p className="overline">3단계</p>
-                <h3>선택 내용을 확인하고 시작하세요</h3>
-                <p>지금 상태 그대로 이어갈지, 새 세션으로 시작할지 바로 선택할 수 있어요.</p>
-              </div>
-              <div className="topic-confirm-grid">
-                <article className="topic-confirm-card">
-                  <p className="overline">상담 깊이</p>
-                  <h4>{modeLabel(selectedMode)}</h4>
-                  <p>{modeQuestionRange(selectedMode)}</p>
-                </article>
-                <article className={"topic-confirm-card topic-tone-" + selectedTopic.id}>
-                  <p className="overline">주제</p>
-                  <h4>{selectedTopic.label}</h4>
-                  <p>{selectedTopic.featuredPrompt}</p>
-                </article>
-              </div>
-              <ul className="topic-confirm-checklist">
-                <li>
-                  <UiIcon name="check" />
-                  <span>선택한 모드: {modeLabel(selectedMode)}</span>
-                </li>
-                <li>
-                  <UiIcon name="check" />
-                  <span>예상 소요: 약 {modeEstimatedMinutes(selectedTopic, selectedMode)}분</span>
-                </li>
-                <li>
-                  <UiIcon name="check" />
-                  <span>주제별 맞춤 질문으로 즉시 진행</span>
-                </li>
-              </ul>
-              <div className="topic-confirm-banner">
-                {selectedOpenSession ? (
-                  <IconLabel icon="archive">
-                    진행 중인 상담이 있습니다. 이어 하거나 새로 시작할 수 있습니다.
-                  </IconLabel>
-                ) : (
-                  <IconLabel icon="check">새 상담을 시작할 준비가 되었습니다.</IconLabel>
-                )}
-              </div>
-            </>
-          ) : null}
-        </div>
-
-        <div className="topic-flow-actions">
-          {stage === 0 ? (
-            <Link className="button ghost" to="/profile">
-              <IconLabel icon="profile">프로필 편집</IconLabel>
-            </Link>
-          ) : (
-            <button className="button ghost" onClick={() => moveStage(-1)} type="button">
-              <IconLabel icon="back">이전</IconLabel>
+            </article>
+            <button
+              className="worldcup-topic-nav"
+              onClick={() => moveTopicCursor(1)}
+              type="button"
+              title="다음 주제"
+            >
+              <UiIcon name="arrowRight" />
             </button>
-          )}
-
-          {stage < 2 ? (
-            <button className="button primary" onClick={() => moveStage(1)} type="button">
-              <IconLabel icon="arrowRight">
-                {stage === 0 ? "주제 고르기" : "최종 확인"}
-              </IconLabel>
-            </button>
-          ) : selectedOpenSession ? (
-            <div className="topic-flow-final-actions">
-              <button
-                className="button secondary"
-                onClick={() => launchSelectedTopic(false)}
-                type="button"
-              >
-                <IconLabel icon="play">이어서 시작</IconLabel>
-              </button>
-              <button
-                className="button primary"
-                onClick={() => launchSelectedTopic(true)}
-                type="button"
-              >
-                <IconLabel icon="spark">새로 시작</IconLabel>
-              </button>
-            </div>
-          ) : (
-            <button className="button primary" onClick={() => launchSelectedTopic()} type="button">
-              <IconLabel icon="play">시작하기</IconLabel>
-            </button>
-          )}
+          </div>
+          <p className="worldcup-topic-index">
+            {topicCursor + 1} / {TOPICS.length}
+          </p>
         </div>
       </section>
     </ScreenFrame>
