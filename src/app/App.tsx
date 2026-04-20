@@ -1832,7 +1832,6 @@ function LandingPage() {
   const cloudAuthProvider = useAppStore((state) => state.cloudAuthProvider);
   const cloudUserEmail = useAppStore((state) => state.cloudUserEmail);
   const signInKakao = useAppStore((state) => state.signInKakao);
-  const clearError = useAppStore((state) => state.clearError);
   const activeSession = useMemo(() => {
     return [...sessions]
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -1844,12 +1843,6 @@ function LandingPage() {
   }, [sessions]);
 
   const handleKakaoStart = async () => {
-    if (!isSupabaseConfigured) {
-      clearError();
-      navigate("/topics");
-      return;
-    }
-
     await signInKakao();
   };
 
