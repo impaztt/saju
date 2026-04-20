@@ -654,7 +654,7 @@ small,
 
 .landing-kakao-start-button {
   min-height: 54px;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 8px;
   padding: 0 14px;
 }
