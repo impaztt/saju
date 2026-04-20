@@ -884,6 +884,11 @@ function buildActionItems(card: ParsedResultCard | undefined, limit = 4): Result
     .slice(0, limit);
 }
 
+function buildQuickActionTexts(result: ConsultationResult, limit = 2) {
+  const cards = parseResultCards(result.cards);
+  return buildActionItems(cards.find((card) => card.key === "do"), limit).map((item) => item.text);
+}
+
 function sourceLabel(source: ConsultationResult["generationSource"]) {
   switch (source) {
     case "cloud":
@@ -1692,8 +1697,8 @@ function TopicHomePage() {
     <ScreenFrame
       className="topic-worldcup-screen"
       hideNav
-      title="바로 선택하고 시작하세요."
-      subtitle="상담 방식 1개, 주제 1개만 고르면 바로 시작됩니다."
+      title="주제만 고르면 바로 시작됩니다."
+      subtitle="상담 방식과 주제를 각각 하나씩 선택하세요."
       footer={
         <div className="topic-worldcup-actions">
           {selectedOpenSession ? (
@@ -1789,17 +1794,17 @@ function TopicHomePage() {
                       <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
                       <strong>{topic.label}</strong>
                     </div>
-                    <p>{topic.shortBlurb}</p>
+                    <p className="worldcup-topic-brief">{topic.shortBlurb}</p>
                     <div className="worldcup-topic-meta-inline">
                       <span>{modeQuestionRange(selectedMode)}</span>
                       <span>약 {modeEstimatedMinutes(topic, selectedMode)}분</span>
                     </div>
                     <p className="worldcup-topic-report-title">{preview.summary}</p>
-                    <ul className="worldcup-topic-report-list">
-                      {preview.points.map((point) => (
-                        <li key={point}>{point}</li>
+                    <div className="worldcup-topic-preview-pills">
+                      {preview.points.slice(0, 2).map((point) => (
+                        <span key={point}>{point}</span>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 </button>
               );
@@ -1833,6 +1838,7 @@ function SessionPage() {
   const sessions = useAppStore((state) => state.sessions);
   const submitAnswer = useAppStore((state) => state.submitAnswer);
   const goBack = useAppStore((state) => state.goBack);
+  const markLoading = useAppStore((state) => state.markLoading);
   const startSession = useAppStore((state) => state.startSession);
   const session = sessions.find((entry) => entry.id === sessionId);
 
@@ -1841,7 +1847,7 @@ function SessionPage() {
   }
 
   if (session.status === "review") {
-    return <Navigate to={`/review/${session.id}`} replace />;
+    return <Navigate to={`/loading/${session.id}`} replace />;
   }
 
   if (session.status === "loading") {
@@ -1897,21 +1903,23 @@ function SessionPage() {
   const node = getNode(flow, session.currentNodeId);
 
   if (!node) {
-    return <Navigate to={`/review/${session.id}`} replace />;
+    return <Navigate to={`/loading/${session.id}`} replace />;
   }
 
   const progress = getProgressPercent(session);
   const topic = topicById(session.topicId);
   const currentStep = session.responses.length + 1;
   const totalSteps = session.consultMode === "focused" ? 22 : 9;
+  const backLabel = session.responses.length === 0 ? "주제로 돌아가기" : "이전 질문";
 
   return (
     <ScreenFrame
-      eyebrow={topic.label}
-      title="질문 응답"
-      subtitle="가장 가까운 선택지를 눌러 진행하세요."
+      className="session-quick-screen"
+      title="질문"
+      hideTopbar
+      hideHeader
       footer={
-        <div className="action-stack">
+        <div className="action-stack session-quick-footer">
           <button
             className="button ghost"
             onClick={() => {
@@ -1922,33 +1930,31 @@ function SessionPage() {
               goBack(session.id);
             }}
           >
-            <IconLabel icon="back">이전 질문</IconLabel>
+            <IconLabel icon="back">{backLabel}</IconLabel>
           </button>
-          <Link className="button ghost" to={`/review/${session.id}`}>
-            <IconLabel icon="edit">답변 검토</IconLabel>
-          </Link>
         </div>
       }
     >
-      <div className="panel soft session-progress-panel">
-        <div className="progress-caption">
-          <span>{modeLabel(session.consultMode)} · 진행 단계</span>
+      <section className="panel session-quick-head">
+        <div className="session-quick-meta">
+          <span className="badge">{topic.label}</span>
           <span>
-            {Math.min(currentStep, totalSteps)}/{totalSteps} · {progress}%
+            Q{Math.min(currentStep, totalSteps)} / {totalSteps}
           </span>
-        </div>
-        <div className="progress-track">
-          <span style={{ width: `${progress}%` }} />
-        </div>
-      </div>
-
-      <section className="panel session-question-panel">
-        <div className="session-question-meta">
-          <span className="badge">Q{Math.min(currentStep, totalSteps)}</span>
           <span>{modeLabel(session.consultMode)}</span>
+          <span>{progress}%</span>
         </div>
         <h2>{node.prompt}</h2>
         {node.helper ? <p>{node.helper}</p> : null}
+        <div className="progress-caption">
+          <span>
+            {Math.min(currentStep, totalSteps)} / {totalSteps}
+          </span>
+          <span>{progress}% 진행</span>
+        </div>
+        <div className="progress-track session-quick-track">
+          <span style={{ width: `${progress}%` }} />
+        </div>
       </section>
 
       {session.compatibility === "warning" ? (
@@ -1957,7 +1963,7 @@ function SessionPage() {
         </div>
       ) : null}
 
-      <div className="choice-list">
+      <div className="choice-list session-choice-list">
         {node.options.map((option, index) => (
           <button
             key={option.id}
@@ -1967,7 +1973,12 @@ function SessionPage() {
               if (!updated) {
                 return;
               }
-              navigate(sessionPath(updated));
+              if (updated.status === "review") {
+                markLoading(updated.id);
+                navigate(`/loading/${updated.id}`, { replace: true });
+                return;
+              }
+              navigate(sessionPath(updated), { replace: true });
             }}
           >
             <div className="choice-head">
@@ -1975,9 +1986,9 @@ function SessionPage() {
                 <span className="choice-index">{index + 1}</span>
                 <strong>{option.label}</strong>
               </div>
-              <UiIcon name="arrowRight" />
-            </div>
-            {option.description ? <p>{option.description}</p> : null}
+                <UiIcon name="arrowRight" />
+              </div>
+            {option.description && session.consultMode === "focused" ? <p>{option.description}</p> : null}
           </button>
         ))}
       </div>
@@ -2111,7 +2122,7 @@ function LoadingPage() {
       if (result) {
         navigate(resultPath(result.id), { replace: true });
       }
-    }, 1200);
+    }, 120);
 
     return () => window.clearTimeout(timer);
   }, [generateResult, markLoading, navigate, session]);
@@ -2123,8 +2134,8 @@ function LoadingPage() {
   return (
     <ScreenFrame
       eyebrow="결과 생성"
-      title="분석을 진행 중입니다."
-      subtitle="잠시만 기다려 주세요."
+      title="결과를 정리하고 있습니다."
+      subtitle="곧바로 리포트로 이동합니다."
     >
       <div className="loading-wrap">
         <div className="loading-spinner" aria-hidden="true" />
@@ -2154,12 +2165,18 @@ function ResultPage() {
   const result = results.find((entry) => entry.id === resultId);
   const session = sessions.find((entry) => entry.resultId === resultId);
   const [copied, setCopied] = useState<string | null>(null);
+  const [showFullReport, setShowFullReport] = useState(false);
+
+  useEffect(() => {
+    setShowFullReport(false);
+  }, [resultId]);
 
   if (!result || !session) {
     return <Navigate to="/archive" replace />;
   }
 
   const topic = topicById(result.topicId);
+  const quickActionTexts = buildQuickActionTexts(result, 2);
   const activeShare = session.shareToken
     ? useAppStore.getState().shares.find((share) => share.token === session.shareToken)
     : undefined;
@@ -2217,6 +2234,27 @@ function ResultPage() {
           {result.accuracyNote ? <p className="accuracy-note">{result.accuracyNote}</p> : null}
         </div>
 
+      <div className="panel result-first-view">
+        <p className="overline">한눈에 보기</p>
+        <h3>{result.summary}</h3>
+        <ul className="plain-list">
+          {(quickActionTexts.length > 0
+            ? quickActionTexts
+            : ["결과 요약을 먼저 확인한 뒤 상세 리포트를 펼쳐서 읽어보세요."]).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          className="button secondary small"
+          onClick={() => setShowFullReport((current) => !current)}
+        >
+          <IconLabel icon={showFullReport ? "back" : "play"}>
+            {showFullReport ? "상세 리포트 접기" : "상세 리포트 펼치기"}
+          </IconLabel>
+        </button>
+      </div>
+
       {copied ? (
         <div className="panel highlight">
           <p className="overline">복사된 공유 링크</p>
@@ -2232,9 +2270,13 @@ function ResultPage() {
         </div>
       ) : null}
 
-      <ResultReportVisuals result={result} session={session} />
-      <ResultCards result={result} />
-      <ResultSelectionTrail session={session} />
+      {showFullReport ? (
+        <>
+          <ResultReportVisuals result={result} session={session} />
+          <ResultCards result={result} />
+          <ResultSelectionTrail session={session} />
+        </>
+      ) : null}
     </ScreenFrame>
   );
 }
