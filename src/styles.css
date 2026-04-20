@@ -625,72 +625,10 @@ small,
   color: var(--ink-2);
 }
 
-.landing-kakao-spotlight {
-  width: 100%;
-  min-height: 62px;
-  border: 1px solid #f2d900;
-  border-radius: 8px;
-  background: #fee500;
-  color: #191600;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  text-align: left;
-  box-shadow: 0 10px 20px rgba(25, 22, 0, 0.12);
-}
-
-.landing-kakao-spotlight > div {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.landing-kakao-spotlight strong {
-  font-size: 16px;
-  line-height: 1.3;
-  color: inherit;
-}
-
-.landing-kakao-spotlight span {
-  font-size: 12px;
-  line-height: 1.35;
-  color: rgba(25, 22, 0, 0.78);
-}
-
-.landing-kakao-spotlight.done {
-  border-color: #bdecd2;
-  background: #ecf9f2;
-  color: #067647;
-  box-shadow: none;
-}
-
-.landing-kakao-spotlight.done span {
-  color: #2c5444;
-}
-
 .landing-onepage-actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.landing-login-panel {
-  border: 1px solid #d7e6dd;
-  border-radius: 8px;
-  background: #f8fcfa;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.landing-login-panel p {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--ink-2);
 }
 
 .landing-login-state {
@@ -708,9 +646,17 @@ small,
   font-weight: 700;
 }
 
-.landing-kakao-login-button {
+.landing-onepage-actions > .button,
+.landing-kakao-ready,
+.landing-login-state {
+  width: 100%;
+}
+
+.landing-kakao-start-button {
+  min-height: 54px;
   justify-content: flex-start;
   gap: 8px;
+  padding: 0 14px;
 }
 
 .kakao-round-logo {
@@ -728,13 +674,28 @@ small,
   flex: none;
 }
 
-.landing-kakao-spotlight .kakao-round-logo {
-  width: 28px;
-  height: 28px;
+.landing-kakao-start-button .kakao-round-logo {
+  width: 26px;
+  height: 26px;
   font-size: 13px;
 }
 
-.landing-kakao-spotlight.done .kakao-round-logo {
+.landing-kakao-ready {
+  min-height: 54px;
+  border: 1px solid #bdecd2;
+  border-radius: 8px;
+  background: #ecf9f2;
+  color: #067647;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.landing-kakao-ready .kakao-round-logo {
   background: #067647;
   color: #ecf9f2;
 }
@@ -2580,13 +2541,8 @@ small,
     font-size: 28px;
   }
 
-  .landing-kakao-spotlight {
-    padding: 10px;
-    gap: 8px;
-  }
-
-  .landing-kakao-spotlight strong {
-    font-size: 15px;
+  .landing-kakao-ready {
+    padding: 0 10px;
   }
 
   .screen-header h1 {
