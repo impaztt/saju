@@ -1315,6 +1315,158 @@ function TopicHomePage() {
   const consultMode = useAppStore((state) => state.consultMode);
   const setConsultMode = useAppStore((state) => state.setConsultMode);
   const sessions = useAppStore((state) => state.sessions);
+  const startSession = useAppStore((state) => state.startSession);
+  const [selectedMode, setSelectedMode] = useState<ConsultationMode>(consultMode);
+  const [selectedTopicId, setSelectedTopicId] = useState<TopicId>(TOPICS[0].id);
+  const selectedTopic = useMemo(
+    () => TOPICS.find((topic) => topic.id === selectedTopicId) ?? TOPICS[0],
+    [selectedTopicId]
+  );
+
+  useEffect(() => {
+    setSelectedMode(consultMode);
+  }, [consultMode]);
+
+  const selectedOpenSession = useMemo(
+    () =>
+      [...sessions]
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .find(
+          (session) =>
+            session.topicId === selectedTopic.id &&
+            session.consultMode === selectedMode &&
+            ["draft", "review", "loading"].includes(session.status) &&
+            session.compatibility !== "outdated"
+        ),
+    [selectedMode, selectedTopic.id, sessions]
+  );
+
+  const launchSelectedTopic = (forceRestart = false) => {
+    const session = startSession(selectedTopic.id, forceRestart, selectedMode);
+    navigate(sessionPath(session));
+  };
+
+  return (
+    <ScreenFrame
+      className="topic-worldcup-screen"
+      hideNav
+      title="바로 선택하고 시작하세요."
+      subtitle="상담 방식과 주제만 고르면 됩니다."
+      footer={
+        <div className="topic-worldcup-actions">
+          <Link className="button ghost" to="/profile">
+            <IconLabel icon="profile">프로필</IconLabel>
+          </Link>
+          {selectedOpenSession ? (
+            <>
+              <button
+                className="button secondary"
+                onClick={() => launchSelectedTopic(false)}
+                type="button"
+              >
+                <IconLabel icon="play">이어서 시작</IconLabel>
+              </button>
+              <button
+                className="button primary"
+                onClick={() => launchSelectedTopic(true)}
+                type="button"
+              >
+                <IconLabel icon="spark">새로 시작</IconLabel>
+              </button>
+            </>
+          ) : (
+            <button className="button primary" onClick={() => launchSelectedTopic()} type="button">
+              <IconLabel icon="play">시작하기</IconLabel>
+            </button>
+          )}
+        </div>
+      }
+    >
+      <section className="topic-worldcup-shell">
+        <div className="worldcup-choice-group">
+          <h3>상담 방식</h3>
+          <div className="worldcup-mode-grid">
+            {([
+              {
+                id: "quick",
+                title: "간단하게 보기",
+                detail: "9문항 · 빠른 진단",
+                icon: "clock"
+              },
+              {
+                id: "focused",
+                title: "집중해서 보기",
+                detail: "22문항 · 깊은 분석",
+                icon: "chart"
+              }
+            ] as const).map((modeOption) => (
+              <button
+                key={modeOption.id}
+                className={
+                  "worldcup-mode-card" + (selectedMode === modeOption.id ? " active" : "")
+                }
+                onClick={() => {
+                  setSelectedMode(modeOption.id);
+                  setConsultMode(modeOption.id);
+                }}
+                type="button"
+              >
+                <span className="worldcup-mode-icon" aria-hidden="true">
+                  <UiIcon name={modeOption.icon} />
+                </span>
+                <div>
+                  <strong>{modeOption.title}</strong>
+                  <span>{modeOption.detail}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="worldcup-choice-group">
+          <h3>상담 주제</h3>
+          <div className="worldcup-topic-grid">
+            {TOPICS.map((topic) => (
+              <button
+                key={topic.id}
+                className={
+                  "worldcup-topic-card topic-tone-" +
+                  topic.id +
+                  (selectedTopic.id === topic.id ? " active" : "")
+                }
+                onClick={() => setSelectedTopicId(topic.id)}
+                type="button"
+              >
+                <div className="worldcup-topic-head">
+                  <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
+                  <strong>{topic.label}</strong>
+                </div>
+                <div className="worldcup-topic-meta">
+                  <span>{modeQuestionRange(selectedMode)}</span>
+                  <span>약 {modeEstimatedMinutes(topic, selectedMode)}분</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {selectedOpenSession ? (
+          <div className="worldcup-resume-note">
+            <IconLabel icon="archive">
+              진행 중인 상담이 있어요. 이어서 시작하거나 새로 시작할 수 있습니다.
+            </IconLabel>
+          </div>
+        ) : null}
+      </section>
+    </ScreenFrame>
+  );
+}
+
+function TopicHomePageLegacy() {
+  const navigate = useNavigate();
+  const consultMode = useAppStore((state) => state.consultMode);
+  const setConsultMode = useAppStore((state) => state.setConsultMode);
+  const sessions = useAppStore((state) => state.sessions);
   const results = useAppStore((state) => state.results);
   const startSession = useAppStore((state) => state.startSession);
   const [stage, setStage] = useState<0 | 1 | 2>(0);
