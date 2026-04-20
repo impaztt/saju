@@ -663,6 +663,26 @@ small,
   font-weight: 700;
 }
 
+.landing-kakao-login-button {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.kakao-round-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #191600;
+  color: #fee500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 800;
+  flex: none;
+}
+
 .landing-start-button {
   min-height: 54px;
 }

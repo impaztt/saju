@@ -1060,8 +1060,15 @@ function LandingPage() {
                 카카오 로그인 완료{cloudUserEmail ? ` · ${cloudUserEmail}` : ""}
               </span>
             ) : (
-              <button className="button kakao" onClick={() => void signInKakao()} type="button">
-                <IconLabel icon="link">카카오 로그인</IconLabel>
+              <button
+                className="button kakao landing-kakao-login-button"
+                onClick={() => void signInKakao()}
+                type="button"
+              >
+                <span className="kakao-round-logo" aria-hidden="true">
+                  K
+                </span>
+                <span>카카오 로그인하기</span>
               </button>
             )
           ) : (

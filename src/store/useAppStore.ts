@@ -55,6 +55,16 @@ function now() {
   return new Date().toISOString();
 }
 
+function safeSessionId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `session-${crypto.randomUUID()}`;
+  }
+
+  const random = Math.random().toString(36).slice(2, 10);
+  const timestamp = Date.now().toString(36);
+  return `session-${timestamp}-${random}`;
+}
+
 function createSession(
   profile: UserProfile,
   topicId: TopicId,
@@ -65,7 +75,7 @@ function createSession(
   const timestamp = now();
 
   return {
-    id: `session-${crypto.randomUUID()}`,
+    id: safeSessionId(),
     userId,
     profileSnapshot: profile,
     topicId,
