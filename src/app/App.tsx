@@ -1379,31 +1379,24 @@ function LandingPage() {
         <button className="button primary landing-start-button" onClick={() => navigate("/topics")}>
           <IconLabel icon="play">시작하기</IconLabel>
         </button>
-        {isSupabaseConfigured ? (
-          cloudAuthProvider === "kakao" ? (
-            <div className="landing-kakao-ready">
-              <span className="kakao-round-logo" aria-hidden="true">
-                K
-              </span>
-              <span>카카오 로그인 완료{cloudUserEmail ? ` · ${cloudUserEmail}` : ""}</span>
-            </div>
-          ) : (
-            <button
-              className="button kakao landing-start-button landing-kakao-start-button"
-              onClick={() => void signInKakao()}
-              type="button"
-            >
-              <span className="kakao-round-logo" aria-hidden="true">
-                K
-              </span>
-              <span>카카오로 시작하기</span>
-            </button>
-          )
+        {cloudAuthProvider === "kakao" ? (
+          <div className="landing-kakao-ready">
+            <span className="kakao-round-logo" aria-hidden="true">
+              K
+            </span>
+            <span>카카오 로그인 완료{cloudUserEmail ? ` · ${cloudUserEmail}` : ""}</span>
+          </div>
         ) : (
-          <span className="landing-login-state muted">
-            <UiIcon name="notice" />
-            로그인 연동 설정이 필요합니다.
-          </span>
+          <button
+            className="button kakao landing-start-button landing-kakao-start-button"
+            onClick={() => void signInKakao()}
+            type="button"
+          >
+            <span className="kakao-round-logo" aria-hidden="true">
+              K
+            </span>
+            <span>카카오로 시작하기</span>
+          </button>
         )}
         {activeSession ? (
           <button className="button ghost" onClick={() => navigate(sessionPath(activeSession))}>
