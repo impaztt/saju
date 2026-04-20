@@ -80,6 +80,14 @@ type TopicPreviewTemplate = {
   points: string[];
 };
 
+type TopicPreviewPalette = {
+  bgStart: string;
+  bgEnd: string;
+  orbA: string;
+  orbB: string;
+  line: string;
+};
+
 const TOPIC_PREVIEW_TEMPLATES: Record<TopicId, TopicPreviewTemplate> = {
   romance: {
     summary: "관계 온도와 표현 속도를 확인합니다.",
@@ -123,43 +131,109 @@ const TOPIC_PREVIEW_TEMPLATES: Record<TopicId, TopicPreviewTemplate> = {
   }
 };
 
-function hexToRgb(hex: string) {
-  const normalized = hex.replace("#", "");
-  if (normalized.length !== 6) {
-    return { r: 3, g: 199, b: 90 };
+const TOPIC_PREVIEW_PALETTES: Record<TopicId, TopicPreviewPalette> = {
+  romance: {
+    bgStart: "#fbeff4",
+    bgEnd: "#f8e8f1",
+    orbA: "#f3c6dc",
+    orbB: "#e8b6d4",
+    line: "#9b6c86"
+  },
+  reunion: {
+    bgStart: "#eef2fb",
+    bgEnd: "#e6ecfa",
+    orbA: "#c4d2f4",
+    orbB: "#b4c5f2",
+    line: "#6071a6"
+  },
+  marriage: {
+    bgStart: "#eef8f6",
+    bgEnd: "#e4f3ee",
+    orbA: "#b8ddd2",
+    orbB: "#abd4c7",
+    line: "#4f7f77"
+  },
+  chemistry: {
+    bgStart: "#eefaf7",
+    bgEnd: "#e6f6f1",
+    orbA: "#b7dfd3",
+    orbB: "#a9d7c9",
+    line: "#4f8677"
+  },
+  relationships: {
+    bgStart: "#f0f4fb",
+    bgEnd: "#e8eef9",
+    orbA: "#c1d0ef",
+    orbB: "#b3c5eb",
+    line: "#5e739f"
+  },
+  family: {
+    bgStart: "#eef8fb",
+    bgEnd: "#e4f1f8",
+    orbA: "#bad7e8",
+    orbB: "#add0e3",
+    line: "#557c95"
+  },
+  career: {
+    bgStart: "#eef9f5",
+    bgEnd: "#e6f4ee",
+    orbA: "#bbdfd2",
+    orbB: "#aed8c8",
+    line: "#4d7f74"
+  },
+  money: {
+    bgStart: "#eef6fb",
+    bgEnd: "#e5eff8",
+    orbA: "#bad3e9",
+    orbB: "#abc8e2",
+    line: "#52799a"
+  },
+  yearly: {
+    bgStart: "#f3effb",
+    bgEnd: "#ece6f8",
+    orbA: "#d0c5ea",
+    orbB: "#c4b6e4",
+    line: "#6f6597"
+  },
+  mind: {
+    bgStart: "#eef4fb",
+    bgEnd: "#e5eef8",
+    orbA: "#c1d2e9",
+    orbB: "#b3c7e2",
+    line: "#5c7694"
   }
-  return {
-    r: Number.parseInt(normalized.slice(0, 2), 16),
-    g: Number.parseInt(normalized.slice(2, 4), 16),
-    b: Number.parseInt(normalized.slice(4, 6), 16)
-  };
-}
+};
 
-function topicPreviewImage(topic: TopicDefinition) {
-  const { r, g, b } = hexToRgb(topic.accent);
-  const deep = `rgb(${Math.max(0, r - 24)}, ${Math.max(0, g - 30)}, ${Math.max(0, b - 24)})`;
-  const soft = `rgba(${r}, ${g}, ${b}, 0.2)`;
-  const strong = `rgb(${r}, ${g}, ${b})`;
+function buildTopicPreviewImage(topicId: TopicId) {
+  const palette = TOPIC_PREVIEW_PALETTES[topicId];
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="520" height="300" viewBox="0 0 520 300" fill="none">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="520" y2="300">
-      <stop offset="0%" stop-color="${soft}" />
-      <stop offset="100%" stop-color="${strong}" />
+      <stop offset="0%" stop-color="${palette.bgStart}" />
+      <stop offset="100%" stop-color="${palette.bgEnd}" />
     </linearGradient>
   </defs>
   <rect width="520" height="300" rx="28" fill="url(#g)" />
-  <circle cx="420" cy="88" r="58" fill="${soft}" />
-  <circle cx="98" cy="240" r="82" fill="${soft}" />
-  <rect x="48" y="52" width="240" height="18" rx="9" fill="${deep}" fill-opacity="0.82" />
-  <rect x="48" y="84" width="182" height="12" rx="6" fill="${deep}" fill-opacity="0.56" />
-  <rect x="48" y="192" width="164" height="12" rx="6" fill="${deep}" fill-opacity="0.5" />
-  <rect x="48" y="216" width="124" height="12" rx="6" fill="${deep}" fill-opacity="0.4" />
+  <circle cx="422" cy="84" r="62" fill="${palette.orbA}" fill-opacity="0.72" />
+  <circle cx="98" cy="240" r="82" fill="${palette.orbB}" fill-opacity="0.68" />
+  <rect x="48" y="52" width="240" height="18" rx="9" fill="${palette.line}" fill-opacity="0.82" />
+  <rect x="48" y="84" width="182" height="12" rx="6" fill="${palette.line}" fill-opacity="0.56" />
+  <rect x="48" y="192" width="164" height="12" rx="6" fill="${palette.line}" fill-opacity="0.44" />
+  <rect x="48" y="216" width="124" height="12" rx="6" fill="${palette.line}" fill-opacity="0.34" />
 </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
+
+const TOPIC_PREVIEW_IMAGES: Record<TopicId, string> = TOPICS.reduce(
+  (acc, topic) => {
+    acc[topic.id] = buildTopicPreviewImage(topic.id);
+    return acc;
+  },
+  {} as Record<TopicId, string>
+);
 
 function cloudAuthLabel(provider: CloudAuthProvider | null) {
   switch (provider) {
@@ -1332,14 +1406,6 @@ function TopicHomePage() {
     () => TOPICS.find((topic) => topic.id === selectedTopicId) ?? TOPICS[0],
     [selectedTopicId]
   );
-  const topicPreviewImages = useMemo(
-    () =>
-      TOPICS.reduce<Record<TopicId, string>>((acc, topic) => {
-        acc[topic.id] = topicPreviewImage(topic);
-        return acc;
-      }, {} as Record<TopicId, string>),
-    []
-  );
 
   useEffect(() => {
     setSelectedMode(consultMode);
@@ -1465,7 +1531,7 @@ function TopicHomePage() {
                 >
                   <img
                     className="worldcup-topic-image"
-                    src={topicPreviewImages[topic.id]}
+                    src={TOPIC_PREVIEW_IMAGES[topic.id]}
                     alt={`${topic.label} 주제 미리보기`}
                     loading="lazy"
                   />
