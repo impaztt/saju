@@ -1371,6 +1371,38 @@ function LandingPage() {
     >
       <section className="landing-onepage-main">
         <p className="landing-kicker">온결 사주</p>
+        {isSupabaseConfigured ? (
+          cloudAuthProvider === "kakao" ? (
+            <div className="landing-kakao-spotlight done">
+              <span className="kakao-round-logo" aria-hidden="true">
+                K
+              </span>
+              <div>
+                <strong>카카오 로그인 완료</strong>
+                <span>{cloudUserEmail ? cloudUserEmail : "로그인 상태 유지 중"}</span>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="button kakao landing-kakao-spotlight"
+              onClick={() => void signInKakao()}
+              type="button"
+            >
+              <span className="kakao-round-logo" aria-hidden="true">
+                K
+              </span>
+              <div>
+                <strong>카카오 로그인하기</strong>
+                <span>로그인하고 저장 데이터 기준 오늘의 운세 이어보기</span>
+              </div>
+            </button>
+          )
+        ) : (
+          <span className="landing-login-state muted">
+            <UiIcon name="notice" />
+            로그인 연동 설정이 필요합니다.
+          </span>
+        )}
         <h1>오늘의 흐름을 빠르게 확인하세요</h1>
         <p>질문에 답하면 지금 필요한 해석과 실행 포인트를 바로 정리해 드려요.</p>
       </section>
@@ -1379,33 +1411,6 @@ function LandingPage() {
         <button className="button primary landing-start-button" onClick={() => navigate("/topics")}>
           <IconLabel icon="play">시작하기</IconLabel>
         </button>
-        <div className="landing-login-panel">
-          <p>로그인하면 저장한 데이터 기준으로 오늘의 운세를 이어서 볼 수 있어요.</p>
-          {isSupabaseConfigured ? (
-            cloudAuthProvider === "kakao" ? (
-              <span className="landing-login-state">
-                <UiIcon name="check" />
-                카카오 로그인 완료{cloudUserEmail ? ` · ${cloudUserEmail}` : ""}
-              </span>
-            ) : (
-              <button
-                className="button kakao landing-kakao-login-button"
-                onClick={() => void signInKakao()}
-                type="button"
-              >
-                <span className="kakao-round-logo" aria-hidden="true">
-                  K
-                </span>
-                <span>카카오 로그인하기</span>
-              </button>
-            )
-          ) : (
-            <span className="landing-login-state muted">
-              <UiIcon name="notice" />
-              로그인 연동 설정이 필요합니다.
-            </span>
-          )}
-        </div>
         {activeSession ? (
           <button className="button ghost" onClick={() => navigate(sessionPath(activeSession))}>
             <IconLabel icon="archive">이어서 하기</IconLabel>
