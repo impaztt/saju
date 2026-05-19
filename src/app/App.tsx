@@ -88,6 +88,34 @@ const TOPIC_GROUPS: TopicGroup[] = [
 ];
 
 const FEATURED_TOPIC_IDS: TopicId[] = ["romance", "career", "mind", "yearly"];
+const BRAND_NAME = "하루결";
+const BRAND_TAGLINE = "복잡한 마음을 한 줄로";
+
+const ENTRY_POINTS: Array<{
+  id: string;
+  label: string;
+  line: string;
+  topicId: TopicId;
+}> = [
+  {
+    id: "love",
+    label: "사랑",
+    line: "상대 마음과 관계 흐름",
+    topicId: "romance"
+  },
+  {
+    id: "work",
+    label: "일",
+    line: "일, 돈, 선택의 기준",
+    topicId: "career"
+  },
+  {
+    id: "mind",
+    label: "마음",
+    line: "내 마음과 올해 방향",
+    topicId: "mind"
+  }
+];
 
 const RESULT_CARD_DESCRIPTIONS: Record<ResultCardKey, string> = {
   summary: "핵심 흐름",
@@ -473,8 +501,8 @@ function TopChrome() {
           <UiIcon name="spark" />
         </span>
         <span>
-          <strong>온결 사주</strong>
-          <small>흐름을 읽는 상담</small>
+          <strong>{BRAND_NAME}</strong>
+          <small>{BRAND_TAGLINE}</small>
         </span>
       </Link>
       <Link className="sync-pill" to="/settings">
@@ -611,113 +639,47 @@ export function App() {
 
 function HomePage() {
   const navigate = useNavigate();
-  const acceptedNotice = useAppStore((state) => state.acceptedNotice);
   const sessions = useAppStore((state) => state.sessions);
   const results = useAppStore((state) => state.results);
-  const profile = useAppStore((state) => state.profile);
-  const cloudAuthProvider = useAppStore((state) => state.cloudAuthProvider);
-  const cloudUserEmail = useAppStore((state) => state.cloudUserEmail);
-  const signInKakao = useAppStore((state) => state.signInKakao);
   const activeSession = useMemo(() => latestOpenSession(sessions), [sessions]);
   const savedEntry = useMemo(() => latestSavedResult(results, sessions), [results, sessions]);
-  const featuredTopics = FEATURED_TOPIC_IDS.map(topicById);
-
-  const startPath = acceptedNotice ? "/topics" : "/notice";
 
   return (
-    <PageFrame className="home-page">
-      <section className="home-hero">
-        <p className="eyebrow">오늘의 상담</p>
-        <h1>지금 마음에 걸리는 흐름부터 가볍게 확인하세요.</h1>
-        <p>긴 풀이를 읽기 전에, 질문 몇 개로 현재 상황과 다음 행동을 먼저 정리합니다.</p>
-        <button className="search-cta" onClick={() => navigate(startPath)} type="button">
-          <IconLabel icon="spark">어떤 고민을 볼까요?</IconLabel>
+    <PageFrame className="home-page minimal-home">
+      <section className="brand-hero">
+        <span className="brand-word">{BRAND_NAME}</span>
+        <h1>복잡한 말 말고, 지금 필요한 한 줄.</h1>
+        <p>사랑, 일, 마음 중 하나만 고르면 바로 시작합니다.</p>
+        <button className="hero-start" onClick={() => navigate("/topics")} type="button">
+          <span>시작하기</span>
           <UiIcon name="arrowRight" />
         </button>
-      </section>
-
-      <section className="quick-grid" aria-label="빠른 이동">
-        <button className="quick-tile" onClick={() => navigate("/topics")} type="button">
-          <UiIcon name="play" />
-          <span>상담 시작</span>
-        </button>
-        <Link className="quick-tile" to="/profile">
-          <UiIcon name="profile" />
-          <span>프로필</span>
-        </Link>
-        <Link className="quick-tile" to="/archive">
-          <UiIcon name="archive" />
-          <span>저장 결과</span>
-        </Link>
-        <Link className="quick-tile" to="/settings">
-          <UiIcon name="settings" />
-          <span>데이터 관리</span>
-        </Link>
+        <div className="hero-tags" aria-label="상담 입구">
+          <span>사랑</span>
+          <span>일</span>
+          <span>마음</span>
+        </div>
       </section>
 
       {activeSession ? (
-        <button className="wide-card continue-card" onClick={() => navigate(sessionPath(activeSession))} type="button">
+        <button className="quiet-card" onClick={() => navigate(sessionPath(activeSession))} type="button">
           <div>
-            <p className="eyebrow">이어서 보기</p>
-            <h2>{topicById(activeSession.topicId).label} 상담이 진행 중입니다.</h2>
-            <p>{activeSession.responses.length}개 답변 완료 · {modeLabel(activeSession.consultMode)}</p>
+            <strong>이어서 보기</strong>
+            <p>{topicById(activeSession.topicId).label} · {activeSession.responses.length}개 답변 완료</p>
           </div>
           <UiIcon name="arrowRight" />
         </button>
       ) : null}
 
       {savedEntry ? (
-        <Link className="wide-card saved-card" to={resultPath(savedEntry.result.id)}>
+        <Link className="quiet-card" to={resultPath(savedEntry.result.id)}>
           <div>
-            <p className="eyebrow">최근 저장 결과</p>
-            <h2>{savedEntry.result.summary}</h2>
-            <p>{formatDateTime(savedEntry.result.generatedAt)}</p>
+            <strong>최근 결과</strong>
+            <p>{savedEntry.result.summary}</p>
           </div>
           <UiIcon name="arrowRight" />
         </Link>
       ) : null}
-
-      <section className="section-stack">
-        <div className="section-head">
-          <div>
-            <p className="eyebrow">추천 주제</p>
-            <h2>많이 보는 흐름</h2>
-          </div>
-          <Link className="text-link" to="/topics">
-            전체 보기
-          </Link>
-        </div>
-        <div className="topic-card-grid">
-          {featuredTopics.map((topic) => (
-            <button
-              key={topic.id}
-              className="topic-card"
-              onClick={() => navigate("/topics", { state: { topicId: topic.id } })}
-              style={topicStyle(topic)}
-              type="button"
-            >
-              <span className="topic-mark" />
-              <strong>{topic.label}</strong>
-              <p>{topic.shortBlurb}</p>
-              <small>약 {topic.estimatedMinutes}분</small>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="account-strip">
-        <div>
-          <p className="eyebrow">현재 프로필</p>
-          <p>{formatProfileSummary(profile)}</p>
-        </div>
-        {cloudAuthProvider === "kakao" ? (
-          <span className="state-pill">카카오 연결됨{cloudUserEmail ? ` · ${cloudUserEmail}` : ""}</span>
-        ) : (
-          <button className="button secondary small" onClick={() => void signInKakao()} type="button">
-            카카오 연결
-          </button>
-        )}
-      </section>
     </PageFrame>
   );
 }
@@ -898,43 +860,15 @@ function ProfilePage() {
 
 function TopicPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const consultMode = useAppStore((state) => state.consultMode);
   const setConsultMode = useAppStore((state) => state.setConsultMode);
-  const profile = useAppStore((state) => state.profile);
   const sessions = useAppStore((state) => state.sessions);
   const startSession = useAppStore((state) => state.startSession);
-  const incomingTopicId = (location.state as { topicId?: TopicId } | null)?.topicId;
-  const incomingGroup = TOPIC_GROUPS.find((group) => incomingTopicId && group.topics.includes(incomingTopicId));
-  const [selectedGroupId, setSelectedGroupId] = useState<TopicGroupId>(incomingGroup?.id ?? "relationship");
-  const [selectedTopicId, setSelectedTopicId] = useState<TopicId>(incomingTopicId ?? "romance");
-  const [selectedMode, setSelectedMode] = useState<ConsultationMode>(consultMode);
-  const selectedGroup = TOPIC_GROUPS.find((group) => group.id === selectedGroupId) ?? TOPIC_GROUPS[0];
-  const topics = selectedGroup.topics.map(topicById);
-  const selectedTopic = topicById(selectedTopicId);
-  const selectedOpenSession = useMemo(
-    () =>
-      [...sessions]
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        .find(
-          (session) =>
-            session.topicId === selectedTopic.id &&
-            session.consultMode === selectedMode &&
-            ["draft", "review", "loading"].includes(session.status) &&
-            session.compatibility !== "outdated"
-        ),
-    [selectedMode, selectedTopic.id, sessions]
-  );
+  const openSessions = useMemo(() => latestOpenSession(sessions), [sessions]);
 
-  const chooseGroup = (group: TopicGroup) => {
-    setSelectedGroupId(group.id);
-    setSelectedTopicId(group.topics[0]);
-  };
-
-  const launch = (forceRestart = false) => {
+  const launch = (topicId: TopicId, forceRestart = false) => {
     try {
-      setConsultMode(selectedMode);
-      const session = startSession(selectedTopic.id, forceRestart, selectedMode);
+      setConsultMode("quick");
+      const session = startSession(topicId, forceRestart, "quick");
       if (session) {
         navigate(sessionPath(session));
       }
@@ -945,101 +879,39 @@ function TopicPage() {
 
   return (
     <PageFrame
-      eyebrow="상담 주제"
-      title="고민을 먼저 고르면 질문이 짧아집니다."
-      description="주제와 상담 깊이를 선택하면 지금 필요한 질문만 이어집니다."
+      className="start-page"
+      eyebrow={BRAND_NAME}
+      title="하나만 고르면 됩니다."
+      description="세부 주제와 깊이는 질문 안에서 자연스럽게 맞춥니다."
       footer={
-        <div className="footer-actions">
-          {selectedOpenSession ? (
-            <>
-              <button className="button primary" onClick={() => launch(false)} type="button">
-                <IconLabel icon="play">이어서 보기</IconLabel>
-              </button>
-              <button className="button ghost" onClick={() => launch(true)} type="button">
-                새로 시작
-              </button>
-            </>
-          ) : (
-            <button className="button primary" onClick={() => launch(true)} type="button">
-              <IconLabel icon="play">상담 시작</IconLabel>
-            </button>
-          )}
-        </div>
+        openSessions ? (
+          <button className="button ghost" onClick={() => navigate(sessionPath(openSessions))} type="button">
+            이어서 보기
+          </button>
+        ) : null
       }
     >
-      <section className="profile-nudge">
-        <div>
-          <p className="eyebrow">프로필</p>
-          <p>{formatProfileSummary(profile)}</p>
-        </div>
-        <Link className="button ghost small" to="/profile">
-          수정
-        </Link>
+      <section className="entry-grid" aria-label="상담 시작 선택">
+        {ENTRY_POINTS.map((entry) => {
+          const topic = topicById(entry.topicId);
+          return (
+            <button
+              key={entry.id}
+              className="entry-card"
+              onClick={() => launch(entry.topicId, false)}
+              style={topicStyle(topic)}
+              type="button"
+            >
+              <span className="topic-mark" />
+              <strong>{entry.label}</strong>
+              <p>{entry.line}</p>
+              <UiIcon name="arrowRight" />
+            </button>
+          );
+        })}
       </section>
 
-      <section className="mode-selector" aria-label="상담 방식">
-        {(["quick", "focused"] as const).map((mode) => (
-          <button
-            key={mode}
-            className={selectedMode === mode ? "active" : ""}
-            onClick={() => setSelectedMode(mode)}
-            type="button"
-          >
-            <UiIcon name={mode === "quick" ? "spark" : "chart"} />
-            <strong>{modeLabel(mode)}</strong>
-            <span>{modeQuestionRange(mode)} · 약 {modeEstimatedMinutes(selectedTopic, mode)}분</span>
-          </button>
-        ))}
-      </section>
-
-      <section className="topic-layout">
-        <div className="topic-main">
-          <div className="group-tabs" role="tablist" aria-label="주제 그룹">
-            {TOPIC_GROUPS.map((group) => (
-              <button
-                key={group.id}
-                className={selectedGroupId === group.id ? "active" : ""}
-                onClick={() => chooseGroup(group)}
-                type="button"
-              >
-                <strong>{group.label}</strong>
-                <span>{group.description}</span>
-              </button>
-            ))}
-          </div>
-          <div className="topic-list">
-            {topics.map((topic) => (
-              <button
-                key={topic.id}
-                className={selectedTopic.id === topic.id ? "topic-row active" : "topic-row"}
-                onClick={() => setSelectedTopicId(topic.id)}
-                style={topicStyle(topic)}
-                type="button"
-              >
-                <span className="topic-mark" />
-                <span>
-                  <strong>{topic.label}</strong>
-                  <small>{topic.shortBlurb}</small>
-                </span>
-                <UiIcon name="arrowRight" />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <aside className="topic-preview" style={topicStyle(selectedTopic)}>
-          <span className="topic-mark large" />
-          <p className="eyebrow">선택한 주제</p>
-          <h2>{selectedTopic.label}</h2>
-          <p>{selectedTopic.description}</p>
-          <blockquote>{selectedTopic.featuredPrompt}</blockquote>
-          <div className="meta-pills">
-            <span>{modeLabel(selectedMode)}</span>
-            <span>{modeQuestionRange(selectedMode)}</span>
-            <span>약 {modeEstimatedMinutes(selectedTopic, selectedMode)}분</span>
-          </div>
-        </aside>
-      </section>
+      <p className="start-note">보통 1분 안에 결과가 나옵니다. 생년월일은 나중에 넣어도 됩니다.</p>
     </PageFrame>
   );
 }
@@ -1301,7 +1173,7 @@ function LoadingPage() {
           </li>
           <li>
             <UiIcon name="check" />
-            사주 기준 보정
+            흐름 기준 보정
           </li>
           <li>
             <UiIcon name="check" />

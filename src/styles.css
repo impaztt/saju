@@ -396,6 +396,114 @@ p {
   padding-top: 14px;
 }
 
+.minimal-home {
+  min-height: calc(100vh - 150px);
+  min-height: calc(100dvh - 150px);
+  justify-content: center;
+}
+
+.minimal-home .page-body {
+  gap: 12px;
+}
+
+.brand-hero {
+  display: flex;
+  min-height: 440px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  padding: 28px;
+  border: 1px solid #d6e4dc;
+  border-radius: 22px;
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.98) 0%, rgba(239, 250, 244, 0.96) 100%),
+    var(--surface);
+  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.08);
+}
+
+.brand-word {
+  color: var(--primary-strong);
+  font-size: 20px;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.brand-hero h1 {
+  max-width: 620px;
+  font-size: 54px;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.brand-hero p {
+  max-width: 460px;
+  color: var(--ink-soft);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.hero-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(100%, 320px);
+  min-height: 64px;
+  margin-top: 8px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.hero-tags span {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 11px;
+  border: 1px solid #d6e4dc;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.quiet-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 17px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.76);
+  text-align: left;
+}
+
+.quiet-card strong {
+  display: block;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.quiet-card p {
+  margin-top: 2px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .home-hero {
   display: flex;
   flex-direction: column;
@@ -776,6 +884,89 @@ p {
   color: var(--ink-muted);
   font-size: 13px;
   line-height: 1.4;
+}
+
+.start-page {
+  min-height: calc(100vh - 170px);
+  min-height: calc(100dvh - 170px);
+  justify-content: center;
+}
+
+.start-page .page-head {
+  max-width: 580px;
+}
+
+.start-page .page-head h1 {
+  font-size: 48px;
+}
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.entry-card {
+  position: relative;
+  display: flex;
+  min-height: 230px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  text-align: left;
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.06);
+}
+
+.entry-card::before {
+  content: "";
+  position: absolute;
+  top: -58px;
+  right: -54px;
+  width: 150px;
+  height: 150px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.entry-card .topic-mark {
+  width: 18px;
+  height: 18px;
+}
+
+.entry-card strong {
+  position: relative;
+  color: var(--ink);
+  font-size: 32px;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.entry-card p {
+  position: relative;
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.entry-card > .ui-icon {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  color: var(--ink-muted);
+}
+
+.start-note {
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .topic-layout {
@@ -1449,12 +1640,15 @@ p {
   }
 
   .page-head h1,
-  .home-hero h1 {
+  .home-hero h1,
+  .brand-hero h1,
+  .start-page .page-head h1 {
     font-size: 29px;
   }
 
   .page-head p:not(.eyebrow),
-  .home-hero p:not(.eyebrow) {
+  .home-hero p:not(.eyebrow),
+  .brand-hero p {
     font-size: 15px;
   }
 
@@ -1462,8 +1656,34 @@ p {
   .topic-card-grid,
   .form-grid,
   .mode-selector,
-  .data-grid {
+  .data-grid,
+  .entry-grid {
     grid-template-columns: 1fr;
+  }
+
+  .minimal-home,
+  .start-page {
+    min-height: auto;
+    justify-content: flex-start;
+  }
+
+  .brand-hero {
+    min-height: 410px;
+    padding: 24px;
+    border-radius: 20px;
+  }
+
+  .hero-start {
+    width: 100%;
+  }
+
+  .entry-card {
+    min-height: 146px;
+    border-radius: 18px;
+  }
+
+  .entry-card strong {
+    font-size: 28px;
   }
 
   .group-tabs {
