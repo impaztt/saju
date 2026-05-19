@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import {
   BrowserRouter,
   Link,
+  NavLink,
   Navigate,
   Route,
   Routes,
@@ -10,25 +11,103 @@ import {
   useParams
 } from "react-router-dom";
 
-import { SIGNAL_TEMPLATES } from "../data/resultTemplates";
 import { FLOW_MAP } from "../data/questionFlows";
+import { SIGNAL_TEMPLATES } from "../data/resultTemplates";
 import { TOPICS } from "../data/topics";
 import { getNode, getProgressPercent } from "../lib/engine";
 import { computeQuestionMetrics, computeTopicMetrics } from "../lib/ops";
 import { isShareExpired } from "../lib/share";
 import { isSupabaseConfigured, type CloudAuthProvider } from "../lib/supabase";
-import { useAppStore } from "../store/useAppStore";
+import { EMPTY_PROFILE, useAppStore } from "../store/useAppStore";
 import type {
   ConsultationMode,
   ConsultationResult,
   ConsultationSession,
+  ResultCard,
+  ResultCardKey,
+  ShareRecord,
   TopicDefinition,
   TopicId,
   UserProfile
 } from "../types";
 
+type IconName =
+  | "archive"
+  | "arrowLeft"
+  | "arrowRight"
+  | "chart"
+  | "check"
+  | "clock"
+  | "cloud"
+  | "edit"
+  | "home"
+  | "link"
+  | "network"
+  | "play"
+  | "profile"
+  | "save"
+  | "settings"
+  | "share"
+  | "spark"
+  | "trash"
+  | "warning";
+
+type TopicGroupId = "relationship" | "reality" | "self";
+
+type TopicGroup = {
+  id: TopicGroupId;
+  label: string;
+  description: string;
+  topics: TopicId[];
+};
+
+type ParsedSection = {
+  title: string;
+  body: string;
+};
+
+const TOPIC_GROUPS: TopicGroup[] = [
+  {
+    id: "relationship",
+    label: "관계",
+    description: "사람과 마음의 온도를 확인해요.",
+    topics: ["romance", "chemistry", "reunion", "marriage", "relationships", "family"]
+  },
+  {
+    id: "reality",
+    label: "현실",
+    description: "일, 돈, 선택의 기준을 정리해요.",
+    topics: ["career", "money"]
+  },
+  {
+    id: "self",
+    label: "나",
+    description: "올해 흐름과 마음의 방향을 봐요.",
+    topics: ["yearly", "mind"]
+  }
+];
+
+const FEATURED_TOPIC_IDS: TopicId[] = ["romance", "career", "mind", "yearly"];
+
+const RESULT_CARD_DESCRIPTIONS: Record<ResultCardKey, string> = {
+  summary: "핵심 흐름",
+  currentFlow: "지금의 방향",
+  self: "내 상태",
+  other: "상대/환경",
+  structure: "문제 구조",
+  nearTerm: "가까운 시기",
+  do: "해야 할 행동",
+  dont: "피해야 할 패턴",
+  oneLine: "오늘의 문장",
+  followUp: "다음 질문"
+};
+
 function topicById(topicId: TopicId) {
   return TOPICS.find((topic) => topic.id === topicId) as TopicDefinition;
+}
+
+function topicStyle(topic: TopicDefinition): CSSProperties {
+  return { "--accent": topic.accent } as CSSProperties;
 }
 
 function formatDate(value?: string) {
@@ -57,315 +136,56 @@ function formatDateTime(value?: string) {
   });
 }
 
+function calendarLabel(value: UserProfile["birthCalendar"]) {
+  return value === "solar" ? "양력" : "음력";
+}
+
+function genderLabel(value: UserProfile["gender"]) {
+  if (value === "female") {
+    return "여성";
+  }
+  if (value === "male") {
+    return "남성";
+  }
+  return "기타";
+}
+
 function modeLabel(mode: ConsultationMode) {
-  return mode === "focused" ? "집중해서 보기" : "간단하게 보기";
+  return mode === "focused" ? "깊게 보기" : "빠른 해석";
 }
 
 function modeQuestionRange(mode: ConsultationMode) {
-  return mode === "focused" ? "22문항" : "9문항";
+  return mode === "focused" ? "15~22문항" : "5~9문항";
 }
 
 function modeEstimatedMinutes(topic: TopicDefinition, mode: ConsultationMode) {
   return mode === "focused" ? topic.estimatedMinutes + 8 : topic.estimatedMinutes;
 }
 
-function modeGuide(mode: ConsultationMode) {
-  return mode === "focused"
-    ? "현재 상황, 반복 패턴, 행동 제약까지 깊게 묻고 해석합니다."
-    : "핵심 흐름과 즉시 실행 포인트를 빠르게 정리합니다.";
-}
-
-type TopicPreviewTemplate = {
-  summary: string;
-  points: string[];
-};
-
-type TopicPreviewPalette = {
-  bgStart: string;
-  bgEnd: string;
-  orbA: string;
-  orbB: string;
-  line: string;
-};
-
-const TOPIC_PREVIEW_TEMPLATES: Record<TopicId, TopicPreviewTemplate> = {
-  romance: {
-    summary: "관계 온도와 표현 속도를 확인합니다.",
-    points: ["감정 신호", "대화 타이밍", "지금 할 행동"]
-  },
-  reunion: {
-    summary: "재접점 가능성과 현실 변수를 봅니다.",
-    points: ["연락 흐름", "거리 요인", "재시도 시점"]
-  },
-  marriage: {
-    summary: "결혼 결정 전 체크 포인트를 정리합니다.",
-    points: ["관계 안정성", "현실 조건", "합의 기준"]
-  },
-  chemistry: {
-    summary: "상대 반응 패턴과 감정 온도를 읽습니다.",
-    points: ["호감 신호", "밀당 패턴", "관계 진전"]
-  },
-  relationships: {
-    summary: "대인관계에서 반복되는 긴장 지점을 봅니다.",
-    points: ["충돌 원인", "거리 조절", "관계 회복"]
-  },
-  family: {
-    summary: "가족 관계의 역할 부담과 감정 거리를 봅니다.",
-    points: ["역할 균형", "경계선", "대화 방식"]
-  },
-  career: {
-    summary: "일과 진로에서 우선순위를 빠르게 정리합니다.",
-    points: ["현재 리스크", "이동 시점", "실행 액션"]
-  },
-  money: {
-    summary: "수입·지출 흐름과 압박 지점을 파악합니다.",
-    points: ["지출 누수", "현금 흐름", "우선 정리"]
-  },
-  yearly: {
-    summary: "올해의 방향성과 집중 포인트를 정리합니다.",
-    points: ["상반기 흐름", "전환 구간", "핵심 과제"]
-  },
-  mind: {
-    summary: "현재 심리 상태와 회복 루트를 제시합니다.",
-    points: ["감정 상태", "소진 신호", "회복 루틴"]
+function sourceLabel(source: ConsultationResult["generationSource"]) {
+  if (source === "cloud") {
+    return "클라우드";
   }
-};
-
-const TOPIC_PREVIEW_PALETTES: Record<TopicId, TopicPreviewPalette> = {
-  romance: {
-    bgStart: "#fbeff4",
-    bgEnd: "#f8e8f1",
-    orbA: "#f3c6dc",
-    orbB: "#e8b6d4",
-    line: "#9b6c86"
-  },
-  reunion: {
-    bgStart: "#eef2fb",
-    bgEnd: "#e6ecfa",
-    orbA: "#c4d2f4",
-    orbB: "#b4c5f2",
-    line: "#6071a6"
-  },
-  marriage: {
-    bgStart: "#eef8f6",
-    bgEnd: "#e4f3ee",
-    orbA: "#b8ddd2",
-    orbB: "#abd4c7",
-    line: "#4f7f77"
-  },
-  chemistry: {
-    bgStart: "#eefaf7",
-    bgEnd: "#e6f6f1",
-    orbA: "#b7dfd3",
-    orbB: "#a9d7c9",
-    line: "#4f8677"
-  },
-  relationships: {
-    bgStart: "#f0f4fb",
-    bgEnd: "#e8eef9",
-    orbA: "#c1d0ef",
-    orbB: "#b3c5eb",
-    line: "#5e739f"
-  },
-  family: {
-    bgStart: "#eef8fb",
-    bgEnd: "#e4f1f8",
-    orbA: "#bad7e8",
-    orbB: "#add0e3",
-    line: "#557c95"
-  },
-  career: {
-    bgStart: "#eef9f5",
-    bgEnd: "#e6f4ee",
-    orbA: "#bbdfd2",
-    orbB: "#aed8c8",
-    line: "#4d7f74"
-  },
-  money: {
-    bgStart: "#eef6fb",
-    bgEnd: "#e5eff8",
-    orbA: "#bad3e9",
-    orbB: "#abc8e2",
-    line: "#52799a"
-  },
-  yearly: {
-    bgStart: "#f3effb",
-    bgEnd: "#ece6f8",
-    orbA: "#d0c5ea",
-    orbB: "#c4b6e4",
-    line: "#6f6597"
-  },
-  mind: {
-    bgStart: "#eef4fb",
-    bgEnd: "#e5eef8",
-    orbA: "#c1d2e9",
-    orbB: "#b3c7e2",
-    line: "#5c7694"
+  if (source === "fallback") {
+    return "기본 결과";
   }
-};
-
-function topicPreviewMotif(topicId: TopicId, palette: TopicPreviewPalette) {
-  const stroke = palette.line;
-
-  switch (topicId) {
-    case "romance":
-      return `
-  <path d="M70 103c0-20 16-36 36-36 13 0 24 7 30 18 6-11 17-18 30-18 20 0 36 16 36 36 0 33-33 53-66 79-33-26-66-46-66-79Z" fill="${stroke}" fill-opacity="0.84" />
-  <circle cx="106" cy="80" r="6" fill="#ffffff" fill-opacity="0.65" />`;
-    case "reunion":
-      return `
-  <g stroke="${stroke}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M41 74a35 35 0 0 1 58-23" fill="none" />
-    <path d="M100 40h18v18" />
-    <path d="M99 92a35 35 0 0 1-58 23" fill="none" />
-    <path d="M40 126H22v-18" />
-  </g>`;
-    case "marriage":
-      return `
-  <g stroke="${stroke}" stroke-width="8" fill="none">
-    <circle cx="58" cy="82" r="26" />
-    <circle cx="94" cy="82" r="26" />
-  </g>
-  <path d="M76 42h8M80 38v8" stroke="${stroke}" stroke-width="6" stroke-linecap="round" />`;
-    case "chemistry":
-      return `
-  <g stroke="${stroke}" stroke-width="7" fill="none">
-    <circle cx="56" cy="88" r="20" />
-    <circle cx="102" cy="70" r="24" />
-    <path d="M75 82c8-6 13-8 22-10" />
-  </g>
-  <circle cx="92" cy="106" r="7" fill="${stroke}" fill-opacity="0.7" />`;
-    case "relationships":
-      return `
-  <g stroke="${stroke}" stroke-width="6" stroke-linecap="round" fill="none">
-    <path d="M36 98 68 70 102 90 74 114 36 98Z" />
-    <path d="M68 70V42" />
-  </g>
-  <g fill="${stroke}">
-    <circle cx="36" cy="98" r="7" />
-    <circle cx="68" cy="70" r="7" />
-    <circle cx="102" cy="90" r="7" />
-    <circle cx="74" cy="114" r="7" />
-    <circle cx="68" cy="42" r="7" />
-  </g>`;
-    case "family":
-      return `
-  <g fill="${stroke}" fill-opacity="0.86">
-    <circle cx="52" cy="72" r="13" />
-    <circle cx="88" cy="68" r="16" />
-    <circle cx="118" cy="76" r="12" />
-  </g>
-  <g stroke="${stroke}" stroke-width="7" fill="none" stroke-linecap="round">
-    <path d="M32 114c4-18 14-28 30-28 16 0 26 10 30 28" />
-    <path d="M76 114c4-22 16-34 34-34 16 0 24 11 28 34" />
-  </g>`;
-    case "career":
-      return `
-  <g fill="${stroke}" fill-opacity="0.84">
-    <rect x="36" y="88" width="16" height="28" rx="4" />
-    <rect x="58" y="76" width="16" height="40" rx="4" />
-    <rect x="80" y="62" width="16" height="54" rx="4" />
-    <rect x="102" y="50" width="16" height="66" rx="4" />
-  </g>
-  <path d="M36 58h38l10-10 20 20" stroke="${stroke}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none" />`;
-    case "money":
-      return `
-  <g fill="none" stroke="${stroke}" stroke-width="7" stroke-linejoin="round">
-    <ellipse cx="74" cy="60" rx="34" ry="12" />
-    <path d="M40 60v16c0 7 15 12 34 12s34-5 34-12V60" />
-    <path d="M40 76v16c0 7 15 12 34 12s34-5 34-12V76" />
-  </g>
-  <path d="M74 47v54M60 58h26M60 90h26" stroke="${stroke}" stroke-width="6" stroke-linecap="round" />`;
-    case "yearly":
-      return `
-  <rect x="38" y="40" width="76" height="76" rx="14" fill="none" stroke="${stroke}" stroke-width="7" />
-  <path d="M38 60h76M60 40v76M82 40v76" stroke="${stroke}" stroke-width="5" />
-  <circle cx="52" cy="74" r="6" fill="${stroke}" />
-  <circle cx="74" cy="74" r="6" fill="${stroke}" fill-opacity="0.66" />
-  <circle cx="96" cy="96" r="6" fill="${stroke}" fill-opacity="0.66" />`;
-    case "mind":
-      return `
-  <path d="M88 38c-24 4-42 24-42 48 0 18 10 34 25 43-28-3-50-27-50-56 0-31 25-56 56-56 4 0 8 0 11 1Z" fill="${stroke}" fill-opacity="0.78" />
-  <path d="M92 94c7 0 12-5 12-12s-5-12-12-12-12 5-12 12 5 12 12 12Zm-46 22c10-8 20-8 30 0 10 8 20 8 30 0" stroke="${stroke}" stroke-width="6" fill="none" stroke-linecap="round" />`;
-    default:
-      return "";
-  }
+  return "로컬 생성";
 }
-
-function buildTopicPreviewImage(topicId: TopicId) {
-  const palette = TOPIC_PREVIEW_PALETTES[topicId];
-  const motif = topicPreviewMotif(topicId, palette);
-
-  const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="520" height="300" viewBox="0 0 520 300" fill="none">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="520" y2="300">
-      <stop offset="0%" stop-color="${palette.bgStart}" />
-      <stop offset="100%" stop-color="${palette.bgEnd}" />
-    </linearGradient>
-  </defs>
-  <rect width="520" height="300" rx="28" fill="url(#g)" />
-  <g opacity="0.2" stroke="${palette.line}" stroke-width="2">
-    <path d="M22 64h476" />
-    <path d="M22 114h476" />
-    <path d="M22 164h476" />
-    <path d="M22 214h476" />
-    <path d="M22 264h476" />
-  </g>
-  <rect x="36" y="38" width="246" height="224" rx="24" fill="#ffffff" fill-opacity="0.52" stroke="${palette.line}" stroke-opacity="0.25" />
-  <rect x="58" y="68" width="174" height="16" rx="8" fill="${palette.line}" fill-opacity="0.75" />
-  <rect x="58" y="96" width="142" height="11" rx="5.5" fill="${palette.line}" fill-opacity="0.42" />
-  <rect x="58" y="130" width="126" height="11" rx="5.5" fill="${palette.line}" fill-opacity="0.34" />
-  <rect x="58" y="184" width="154" height="13" rx="6.5" fill="${palette.line}" fill-opacity="0.24" />
-  <rect x="58" y="206" width="112" height="13" rx="6.5" fill="${palette.line}" fill-opacity="0.2" />
-  <g transform="translate(322 56)">
-    <rect width="156" height="156" rx="36" fill="${palette.orbA}" fill-opacity="0.74" />
-    <rect x="14" y="14" width="128" height="128" rx="30" fill="${palette.orbB}" fill-opacity="0.68" />
-    ${motif}
-  </g>
-  <circle cx="430" cy="242" r="38" fill="${palette.orbA}" fill-opacity="0.58" />
-  <circle cx="354" cy="232" r="22" fill="${palette.orbB}" fill-opacity="0.56" />
-</svg>`;
-
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-const TOPIC_PREVIEW_IMAGES: Record<TopicId, string> = TOPICS.reduce(
-  (acc, topic) => {
-    acc[topic.id] = buildTopicPreviewImage(topic.id);
-    return acc;
-  },
-  {} as Record<TopicId, string>
-);
 
 function cloudAuthLabel(provider: CloudAuthProvider | null) {
-  switch (provider) {
-    case "kakao":
-      return "카카오";
-    case "email":
-      return "이메일";
-    case "anonymous":
-      return "익명";
-    case "other":
-      return "외부 제공자";
-    default:
-      return "미연결";
+  if (provider === "kakao") {
+    return "카카오";
   }
-}
-
-function genderLabel(value: UserProfile["gender"]) {
-  switch (value) {
-    case "female":
-      return "여성";
-    case "male":
-      return "남성";
-    default:
-      return "기타";
+  if (provider === "email") {
+    return "이메일";
   }
-}
-
-function calendarLabel(value: UserProfile["birthCalendar"]) {
-  return value === "solar" ? "양력" : "음력";
+  if (provider === "anonymous") {
+    return "익명";
+  }
+  if (provider === "other") {
+    return "외부 계정";
+  }
+  return "미연결";
 }
 
 function formatProfileSummary(profile: UserProfile) {
@@ -374,19 +194,17 @@ function formatProfileSummary(profile: UserProfile) {
   if (profile.nickname.trim()) {
     parts.push(profile.nickname.trim());
   }
-
   if (profile.birthDate) {
-    parts.push(profile.birthDate + " " + calendarLabel(profile.birthCalendar));
+    parts.push(`${profile.birthDate} ${calendarLabel(profile.birthCalendar)}`);
     parts.push(profile.birthTimeUnknown ? "출생시간 모름" : profile.birthTime || "출생시간 미입력");
   }
-
   if (profile.gender !== "other") {
     parts.push(genderLabel(profile.gender));
   }
 
   return parts.length > 0
     ? parts.join(" · ")
-    : "빠른 시작 모드입니다. 생년월일과 출생시간을 입력하면 결과가 더 세밀해집니다.";
+    : "프로필 없이 빠르게 시작합니다. 생년월일을 넣으면 결과가 더 구체적입니다.";
 }
 
 function resultPath(resultId: string) {
@@ -397,15 +215,12 @@ function sessionPath(session: ConsultationSession) {
   if (session.status === "result" && session.resultId) {
     return resultPath(session.resultId);
   }
-
   if (session.status === "review") {
     return `/review/${session.id}`;
   }
-
   if (session.status === "loading") {
     return `/loading/${session.id}`;
   }
-
   return `/session/${session.id}`;
 }
 
@@ -413,41 +228,60 @@ function absoluteShareUrl(path: string) {
   if (typeof window === "undefined") {
     return path;
   }
-
   return new URL(path, window.location.origin).toString();
 }
 
-function isReloadNavigation() {
-  if (typeof performance === "undefined") {
-    return false;
-  }
-
-  const navigationEntries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
-  return navigationEntries[0]?.type === "reload";
+function latestOpenSession(sessions: ConsultationSession[]) {
+  return [...sessions]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .find((session) => ["draft", "review", "loading"].includes(session.status) && session.compatibility !== "outdated");
 }
 
-type IconName =
-  | "spark"
-  | "archive"
-  | "settings"
-  | "arrowRight"
-  | "play"
-  | "notice"
-  | "profile"
-  | "back"
-  | "edit"
-  | "save"
-  | "share"
-  | "warning"
-  | "network"
-  | "cloud"
-  | "clock"
-  | "chart"
-  | "trash"
-  | "link"
-  | "check";
+function latestSavedResult(results: ConsultationResult[], sessions: ConsultationSession[]) {
+  return [...results]
+    .map((result) => ({
+      result,
+      session: sessions.find((session) => session.resultId === result.id)
+    }))
+    .filter((entry) => Boolean(entry.session?.saved))
+    .sort((a, b) => b.result.generatedAt.localeCompare(a.result.generatedAt))[0];
+}
 
-function IconBase({ children, className }: { children: React.ReactNode; className?: string }) {
+function parseCardSections(card?: ResultCard): ParsedSection[] {
+  if (!card) {
+    return [];
+  }
+
+  return card.body
+    .split(/\n{2,}/)
+    .map((block) => {
+      const match = block.match(/^\[(.+?)\]\n([\s\S]*)$/);
+      if (match) {
+        return { title: match[1], body: match[2].trim() };
+      }
+      return { title: card.title, body: block.trim() };
+    })
+    .filter((section) => section.body.length > 0);
+}
+
+function cardByKey(result: ConsultationResult, key: ResultCardKey) {
+  return result.cards.find((card) => card.key === key);
+}
+
+function cardLead(card?: ResultCard) {
+  const section = parseCardSections(card)[0];
+  const text = section?.body ?? card?.body ?? "";
+  return text.split("\n").find(Boolean) ?? "";
+}
+
+function splitLines(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function IconBase({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <svg
       className={["ui-icon", className].filter(Boolean).join(" ")}
@@ -466,12 +300,6 @@ function IconBase({ children, className }: { children: React.ReactNode; classNam
 
 function UiIcon({ name, className }: { name: IconName; className?: string }) {
   switch (name) {
-    case "spark":
-      return (
-        <IconBase className={className}>
-          <path d="M12 3 14 8l5 2-5 2-2 5-2-5-5-2 5-2 2-5Z" />
-        </IconBase>
-      );
     case "archive":
       return (
         <IconBase className={className}>
@@ -480,11 +308,10 @@ function UiIcon({ name, className }: { name: IconName; className?: string }) {
           <path d="M10 12h4" />
         </IconBase>
       );
-    case "settings":
+    case "arrowLeft":
       return (
         <IconBase className={className}>
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.1a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.1a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.1a1 1 0 0 0 .6.9h.3a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1v.3a1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.1a1 1 0 0 0-.9.6z" />
+          <path d="m15 18-6-6 6-6" />
         </IconBase>
       );
     case "arrowRight":
@@ -493,31 +320,32 @@ function UiIcon({ name, className }: { name: IconName; className?: string }) {
           <path d="m9 18 6-6-6-6" />
         </IconBase>
       );
-    case "play":
+    case "chart":
       return (
         <IconBase className={className}>
-          <path d="m8 5 11 7-11 7V5Z" />
+          <path d="M4 20h16" />
+          <path d="M7 16v-4" />
+          <path d="M12 16V8" />
+          <path d="M17 16v-7" />
         </IconBase>
       );
-    case "notice":
+    case "check":
       return (
         <IconBase className={className}>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 8v5" />
-          <path d="M12 16h.01" />
+          <path d="m5 13 4 4L19 7" />
         </IconBase>
       );
-    case "profile":
+    case "clock":
       return (
         <IconBase className={className}>
-          <circle cx="12" cy="8" r="4" />
-          <path d="M4 20a8 8 0 0 1 16 0" />
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
         </IconBase>
       );
-    case "back":
+    case "cloud":
       return (
         <IconBase className={className}>
-          <path d="m15 18-6-6 6-6" />
+          <path d="M20 16.6A4.5 4.5 0 0 0 17 8a6 6 0 0 0-11.5 2A4 4 0 0 0 6 18h14" />
         </IconBase>
       );
     case "edit":
@@ -527,12 +355,55 @@ function UiIcon({ name, className }: { name: IconName; className?: string }) {
           <path d="m16.5 3.5 4 4L8 20l-5 1 1-5L16.5 3.5Z" />
         </IconBase>
       );
+    case "home":
+      return (
+        <IconBase className={className}>
+          <path d="M3 11 12 3l9 8" />
+          <path d="M5 10v10h14V10" />
+        </IconBase>
+      );
+    case "link":
+      return (
+        <IconBase className={className}>
+          <path d="M10 13a5 5 0 0 1 0-7l1.5-1.5a5 5 0 1 1 7 7L17 13" />
+          <path d="M14 11a5 5 0 0 1 0 7l-1.5 1.5a5 5 0 1 1-7-7L7 11" />
+        </IconBase>
+      );
+    case "network":
+      return (
+        <IconBase className={className}>
+          <path d="M2 8a15 15 0 0 1 20 0" />
+          <path d="M5 12a10 10 0 0 1 14 0" />
+          <path d="M8 16a5 5 0 0 1 8 0" />
+          <circle cx="12" cy="20" r="1" />
+        </IconBase>
+      );
+    case "play":
+      return (
+        <IconBase className={className}>
+          <path d="m8 5 11 7-11 7V5Z" />
+        </IconBase>
+      );
+    case "profile":
+      return (
+        <IconBase className={className}>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 20a8 8 0 0 1 16 0" />
+        </IconBase>
+      );
     case "save":
       return (
         <IconBase className={className}>
           <path d="M5 4h11l3 3v13H5z" />
           <path d="M9 4v6h6V4" />
           <path d="M9 20v-6h6v6" />
+        </IconBase>
+      );
+    case "settings":
+      return (
+        <IconBase className={className}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.1a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.1a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.1a1 1 0 0 0 .6.9h.3a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1v.3a1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.1a1 1 0 0 0-.9.6z" />
         </IconBase>
       );
     case "share":
@@ -545,43 +416,10 @@ function UiIcon({ name, className }: { name: IconName; className?: string }) {
           <path d="m8.7 13.3 6.6 3.4" />
         </IconBase>
       );
-    case "warning":
+    case "spark":
       return (
         <IconBase className={className}>
-          <path d="M12 3 2 21h20L12 3Z" />
-          <path d="M12 9v5" />
-          <path d="M12 17h.01" />
-        </IconBase>
-      );
-    case "network":
-      return (
-        <IconBase className={className}>
-          <path d="M2 8a15 15 0 0 1 20 0" />
-          <path d="M5 12a10 10 0 0 1 14 0" />
-          <path d="M8 16a5 5 0 0 1 8 0" />
-          <circle cx="12" cy="20" r="1" />
-        </IconBase>
-      );
-    case "cloud":
-      return (
-        <IconBase className={className}>
-          <path d="M20 16.6A4.5 4.5 0 0 0 17 8a6 6 0 0 0-11.5 2A4 4 0 0 0 6 18h14" />
-        </IconBase>
-      );
-    case "clock":
-      return (
-        <IconBase className={className}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3 2" />
-        </IconBase>
-      );
-    case "chart":
-      return (
-        <IconBase className={className}>
-          <path d="M4 20h16" />
-          <path d="M7 16v-4" />
-          <path d="M12 16V8" />
-          <path d="M17 16v-7" />
+          <path d="M12 3 14 8l5 2-5 2-2 5-2-5-5-2 5-2 2-5Z" />
         </IconBase>
       );
     case "trash":
@@ -594,17 +432,12 @@ function UiIcon({ name, className }: { name: IconName; className?: string }) {
           <path d="M14 11v6" />
         </IconBase>
       );
-    case "link":
+    case "warning":
       return (
         <IconBase className={className}>
-          <path d="M10 13a5 5 0 0 1 0-7l1.5-1.5a5 5 0 1 1 7 7L17 13" />
-          <path d="M14 11a5 5 0 0 1 0 7L12.5 19.5a5 5 0 1 1-7-7L7 11" />
-        </IconBase>
-      );
-    case "check":
-      return (
-        <IconBase className={className}>
-          <path d="m5 13 4 4L19 7" />
+          <path d="M12 3 2 21h20L12 3Z" />
+          <path d="M12 9v5" />
+          <path d="M12 17h.01" />
         </IconBase>
       );
     default:
@@ -612,16 +445,7 @@ function UiIcon({ name, className }: { name: IconName; className?: string }) {
   }
 }
 
-function TopbarLink({ to, icon, label }: { to: string; icon: IconName; label: string }) {
-  return (
-    <Link className="topbar-link" to={to} title={label}>
-      <UiIcon name={icon} />
-      <span>{label}</span>
-    </Link>
-  );
-}
-
-function IconLabel({ icon, children }: { icon: IconName; children: React.ReactNode }) {
+function IconLabel({ icon, children }: { icon: IconName; children: ReactNode }) {
   return (
     <span className="icon-label">
       <UiIcon name={icon} />
@@ -630,1139 +454,94 @@ function IconLabel({ icon, children }: { icon: IconName; children: React.ReactNo
   );
 }
 
-function ScreenFrame({
+function TopChrome() {
+  const cloudSyncStatus = useAppStore((state) => state.cloudSyncStatus);
+  const cloudAuthProvider = useAppStore((state) => state.cloudAuthProvider);
+  const statusText =
+    cloudSyncStatus === "ready"
+      ? cloudAuthLabel(cloudAuthProvider)
+      : cloudSyncStatus === "syncing"
+        ? "동기화 중"
+        : cloudSyncStatus === "error"
+          ? "동기화 확인"
+          : "로컬";
+
+  return (
+    <header className="chrome-top">
+      <Link className="brand" to="/">
+        <span className="brand-mark">
+          <UiIcon name="spark" />
+        </span>
+        <span>
+          <strong>온결 사주</strong>
+          <small>흐름을 읽는 상담</small>
+        </span>
+      </Link>
+      <Link className="sync-pill" to="/settings">
+        <UiIcon name="cloud" />
+        <span>{statusText}</span>
+      </Link>
+    </header>
+  );
+}
+
+function BottomNav() {
+  return (
+    <nav className="bottom-nav" aria-label="주요 메뉴">
+      <NavLink className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`} to="/">
+        <UiIcon name="home" />
+        <span>홈</span>
+      </NavLink>
+      <NavLink className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`} to="/archive">
+        <UiIcon name="archive" />
+        <span>보관함</span>
+      </NavLink>
+      <NavLink className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`} to="/settings">
+        <UiIcon name="settings" />
+        <span>설정</span>
+      </NavLink>
+    </nav>
+  );
+}
+
+function PageFrame({
   eyebrow,
   title,
-  subtitle,
+  description,
   children,
   footer,
-  className,
-  footerClassName,
-  hideNav = false,
-  hideHeader = false,
-  hideTopbar = false
+  className
 }: {
   eyebrow?: string;
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
+  title?: string;
+  description?: string;
+  children: ReactNode;
+  footer?: ReactNode;
   className?: string;
-  footerClassName?: string;
-  hideNav?: boolean;
-  hideHeader?: boolean;
-  hideTopbar?: boolean;
 }) {
   return (
-    <main className={["screen", className].filter(Boolean).join(" ")}>
-      {hideTopbar ? null : (
-        <div className="topbar">
-          <Link className="brand" to="/">
-            <span className="brand-mark" aria-hidden="true">
-              <UiIcon name="spark" />
-            </span>
-            <span className="brand-text">온결 사주</span>
-          </Link>
-          {hideNav ? null : (
-            <div className="topbar-links">
-              <TopbarLink to="/archive" icon="archive" label="보관함" />
-              <TopbarLink to="/settings" icon="settings" label="설정" />
-            </div>
-          )}
-        </div>
-      )}
-      {hideHeader ? null : (
-        <header className="screen-header">
+    <main className={["page", className].filter(Boolean).join(" ")}>
+      {title ? (
+        <header className="page-head">
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
           <h1>{title}</h1>
-          {subtitle ? <p className="subtitle">{subtitle}</p> : null}
+          {description ? <p>{description}</p> : null}
         </header>
-      )}
-      <section className="screen-body">{children}</section>
-      {footer ? (
-        <footer className={["screen-footer", footerClassName].filter(Boolean).join(" ")}>
-          {footer}
-        </footer>
       ) : null}
+      <div className="page-body">{children}</div>
+      {footer ? <footer className="page-footer">{footer}</footer> : null}
     </main>
   );
 }
 
-type ParsedResultSection = {
-  title: string;
-  body: string;
-};
-
-type ParsedResultCard = ConsultationResult["cards"][number] & {
-  titleText: string;
-  sections: ParsedResultSection[];
-};
-
-type ResultMetric = {
-  label: string;
-  value: number;
-  caption: string;
-  icon: IconName;
-};
-
-type ResultActionItem = {
-  label: string;
-  text: string;
-};
-
-type ResultCardKey = ConsultationResult["cards"][number]["key"];
-
-type PremiumMetric = {
-  label: string;
-  score: number;
-  caption: string;
-};
-
-type PremiumChapter = {
-  id: string;
-  title: string;
-  subtitle: string;
-  summary: string;
-  insights: string[];
-  actions: string[];
-  checkpoints: string[];
-};
-
-type PremiumRoadmapPhase = {
-  phase: string;
-  focus: string;
-  tasks: string[];
-};
-
-const TAG_PREFIX_LABELS: Record<string, string> = {
-  topic: "주제",
-  stage: "관계 단계",
-  state: "상태 신호",
-  consult: "상담 포커스",
-  romance: "연애",
-  reunion: "재회",
-  marriage: "결혼",
-  chemistry: "상대 심리",
-  relationships: "인간관계",
-  family: "가족",
-  career: "커리어",
-  money: "재정",
-  year: "연간 흐름",
-  mind: "마음"
-};
-
-const RESULT_CARD_ICON_MAP: Record<ResultCardKey, IconName> = {
-  summary: "spark",
-  currentFlow: "chart",
-  self: "profile",
-  other: "network",
-  structure: "notice",
-  nearTerm: "clock",
-  do: "check",
-  dont: "warning",
-  oneLine: "spark",
-  followUp: "link"
-};
-
-type ResultBoardMeta = {
-  subtitle: string;
-  perspective: string;
-};
-
-const RESULT_BOARD_META: Record<ResultCardKey, ResultBoardMeta> = {
-  summary: {
-    subtitle: "핵심 진단",
-    perspective: "현재 흐름을 한 문장으로 요약해 방향을 선명하게 잡습니다."
-  },
-  currentFlow: {
-    subtitle: "흐름 분석",
-    perspective: "지금 왜 흔들리는지, 어디가 병목인지 맥락으로 풀어냅니다."
-  },
-  self: {
-    subtitle: "내 상태",
-    perspective: "내 감정, 반응 패턴, 에너지 소모 지점을 먼저 점검합니다."
-  },
-  other: {
-    subtitle: "상대·환경",
-    perspective: "상대와 환경이 실제로 어떤 속도로 움직이는지 분리해 봅니다."
-  },
-  structure: {
-    subtitle: "구조 파악",
-    perspective: "문제의 원인을 감정이 아닌 구조로 나눠 실행 가능하게 만듭니다."
-  },
-  nearTerm: {
-    subtitle: "근시기 포인트",
-    perspective: "지금부터 가까운 구간에서 집중해야 할 신호를 정리합니다."
-  },
-  do: {
-    subtitle: "실행 전략",
-    perspective: "바로 적용 가능한 행동 우선순위를 구체적으로 제시합니다."
-  },
-  dont: {
-    subtitle: "회피 전략",
-    perspective: "결과를 망치는 반복 패턴을 먼저 끊도록 경고합니다."
-  },
-  oneLine: {
-    subtitle: "한 줄 정리",
-    perspective: "복잡한 해석을 짧은 기준 문장으로 묶어 기억하기 쉽게 만듭니다."
-  },
-  followUp: {
-    subtitle: "다음 질문",
-    perspective: "리포트를 실제 선택으로 연결하기 위한 후속 질문을 제안합니다."
-  }
-};
-
-function normalizeCardTitle(title: string) {
-  return title.replace(/^\d+\.\s*/, "").trim();
-}
-
-function parseResultCardSections(body: string) {
-  const rows = body.replace(/\r/g, "").split("\n");
-  const sections: ParsedResultSection[] = [];
-  let currentTitle = "";
-  let currentBody: string[] = [];
-
-  const flush = () => {
-    const joined = currentBody.join("\n").trim();
-    if (!joined) {
-      return;
-    }
-    sections.push({
-      title: currentTitle || "핵심 포인트",
-      body: joined
-    });
-  };
-
-  rows.forEach((row) => {
-    const line = row.trim();
-    if (!line) {
-      return;
-    }
-    const match = line.match(/^\[(.+)\]$/);
-    if (match) {
-      flush();
-      currentTitle = match[1].trim();
-      currentBody = [];
-      return;
-    }
-    currentBody.push(line);
-  });
-  flush();
-
-  if (sections.length > 0) {
-    return sections;
-  }
-
-  return [
-    {
-      title: "핵심 포인트",
-      body: body.trim()
-    }
-  ];
-}
-
-function splitBodySentences(body: string) {
-  return body
-    .replace(/\r/g, "")
-    .split("\n")
-    .flatMap((line) => line.split(/[.!?]\s+/))
-    .map((line) => line.replace(/\.$/, "").trim())
-    .filter(Boolean);
-}
-
-function toListItems(body: string) {
-  const lines = body
-    .replace(/\r/g, "")
-    .split("\n")
-    .map((line) => line.replace(/^\d+\.\s*/, "").trim())
-    .filter(Boolean);
-
-  if (lines.length > 1) {
-    return lines;
-  }
-
-  return splitBodySentences(body);
-}
-
-function parseResultCards(cards: ConsultationResult["cards"]): ParsedResultCard[] {
-  return cards.map((card) => ({
-    ...card,
-    titleText: normalizeCardTitle(card.title),
-    sections: parseResultCardSections(card.body)
-  }));
-}
-
-function sectionLead(section: ParsedResultSection) {
-  const lines = toListItems(section.body);
-  return lines[0] ?? section.body;
-}
-
-function buildStrategyHighlights(card: ParsedResultCard, limit = 4) {
-  return card.sections
-    .flatMap((section) =>
-      toListItems(section.body)
-        .slice(0, 2)
-        .map((line) => ({
-          sectionTitle: section.title,
-          text: line
-        }))
-    )
-    .filter((item) => Boolean(item.text))
-    .slice(0, limit);
-}
-
-type ResultTrailItem = {
-  step: number;
-  prompt: string;
-  answer: string;
-  tags: string[];
-};
-
-function buildTrailItems(session?: ConsultationSession): ResultTrailItem[] {
-  if (!session || session.responses.length === 0) {
-    return [];
-  }
-
-  const flow = FLOW_MAP[session.topicId];
-  return session.responses.map((response, index) => ({
-    step: index + 1,
-    prompt: getNode(flow, response.nodeId)?.prompt ?? "질문",
-    answer: response.label,
-    tags: response.tags
-  }));
-}
-
-function buildTagBreakdown(tags: string[]) {
-  if (tags.length === 0) {
-    return [];
-  }
-
-  const counts = tags.reduce<Record<string, number>>((acc, tag) => {
-    const prefix = tag.split(".")[0];
-    acc[prefix] = (acc[prefix] ?? 0) + 1;
-    return acc;
-  }, {});
-  const total = tags.length;
-
-  return Object.entries(counts)
-    .map(([key, count]) => ({
-      key,
-      label: TAG_PREFIX_LABELS[key] ?? key,
-      count,
-      ratio: Math.round((count / total) * 100)
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 6);
-}
-
-function profileCompleteness(profile: UserProfile) {
-  if (!profile.birthDate) {
-    return 42;
-  }
-  if (profile.birthTimeUnknown || !profile.birthTime) {
-    return 76;
-  }
-  return 92;
-}
-
-function buildResultMetrics(result: ConsultationResult, session?: ConsultationSession): ResultMetric[] {
-  const responseCount = session?.responses.length ?? 0;
-  const profileScore = session ? profileCompleteness(session.profileSnapshot) : 72;
-  const signalScore = Math.min(100, 52 + Math.min(result.tags.length, 10) * 5);
-  const trailScore = responseCount === 0 ? 0 : Math.min(100, 34 + Math.min(responseCount, 8) * 8);
-
-  return [
-    {
-      label: "개인화 정밀도",
-      value: profileScore,
-      caption: "기본 정보 완성도 기반",
-      icon: "profile"
-    },
-    {
-      label: "신호 밀도",
-      value: signalScore,
-      caption: `해석 태그 ${result.tags.length}개`,
-      icon: "chart"
-    },
-    {
-      label: "흐름 추적도",
-      value: trailScore,
-      caption: `답변 ${responseCount}개 반영`,
-      icon: "clock"
-    }
-  ];
-}
-
-function buildActionItems(card: ParsedResultCard | undefined, limit = 4): ResultActionItem[] {
-  if (!card) {
-    return [];
-  }
-
-  return card.sections
-    .flatMap((section) => {
-      const lineItems = toListItems(section.body);
-      return lineItems.map((line) => ({
-        label: section.title,
-        text: line
-      }));
-    })
-    .slice(0, limit);
-}
-
-function buildQuickActionTexts(result: ConsultationResult, limit = 2) {
-  const cards = parseResultCards(result.cards);
-  return buildActionItems(cards.find((card) => card.key === "do"), limit).map((item) => item.text);
-}
-
-function uniqueLines(lines: string[]) {
-  return [...new Set(lines.map((line) => line.trim()).filter(Boolean))];
-}
-
-function cardLines(card: ParsedResultCard | undefined, limit = 8) {
-  if (!card) {
-    return [];
-  }
-
-  return uniqueLines(
-    card.sections.flatMap((section) => toListItems(section.body)).slice(0, limit * 2)
-  ).slice(0, limit);
-}
-
-function withFallback(lines: string[], fallback: string[], count: number) {
-  const picked = uniqueLines(lines);
-  if (picked.length >= count) {
-    return picked.slice(0, count);
-  }
-  return uniqueLines([...picked, ...fallback]).slice(0, count);
-}
-
-function buildPremiumMetrics(result: ConsultationResult, session?: ConsultationSession): PremiumMetric[] {
-  const base = buildResultMetrics(result, session);
-  const parsedCards = parseResultCards(result.cards);
-  const doCount = buildActionItems(parsedCards.find((card) => card.key === "do"), 8).length;
-  const dontCount = buildActionItems(parsedCards.find((card) => card.key === "dont"), 8).length;
-  const executionReadiness = Math.min(96, 48 + doCount * 9);
-  const lossControl = Math.max(38, 88 - dontCount * 8);
-
-  return [
-    {
-      label: base[0].label,
-      score: base[0].value,
-      caption: base[0].caption
-    },
-    {
-      label: base[1].label,
-      score: base[1].value,
-      caption: base[1].caption
-    },
-    {
-      label: base[2].label,
-      score: base[2].value,
-      caption: base[2].caption
-    },
-    {
-      label: "실행 준비도",
-      score: executionReadiness,
-      caption: `즉시 실행 항목 ${doCount}개 기준`
-    },
-    {
-      label: "손실 방어력",
-      score: lossControl,
-      caption: `주의 패턴 ${dontCount}개 반영`
-    }
-  ];
-}
-
-function buildPremiumChapters(result: ConsultationResult, session?: ConsultationSession): PremiumChapter[] {
-  const cards = parseResultCards(result.cards);
-  const cardByKey = (key: ResultCardKey) => cards.find((card) => card.key === key);
-  const summaryLines = cardLines(cardByKey("summary"), 8);
-  const flowLines = cardLines(cardByKey("currentFlow"), 8);
-  const selfLines = cardLines(cardByKey("self"), 8);
-  const otherLines = cardLines(cardByKey("other"), 8);
-  const structureLines = cardLines(cardByKey("structure"), 8);
-  const nearTermLines = cardLines(cardByKey("nearTerm"), 8);
-  const doLines = buildActionItems(cardByKey("do"), 10).map((item) => item.text);
-  const dontLines = buildActionItems(cardByKey("dont"), 10).map((item) => item.text);
-  const oneLine = cardLines(cardByKey("oneLine"), 6);
-  const followLines =
-    result.recommendedQuestions.length > 0 ? result.recommendedQuestions : cardLines(cardByKey("followUp"), 8);
-  const responseLines = session ? session.responses.map((entry) => entry.label) : [];
-
-  return [
-    {
-      id: "diagnosis",
-      title: "진단 총괄",
-      subtitle: "이번 리포트의 핵심 결론",
-      summary: withFallback(summaryLines, [result.summary], 1)[0] ?? result.summary,
-      insights: withFallback(summaryLines, [result.summary], 4),
-      actions: withFallback(doLines, ["지금 바로 적용할 한 가지 행동을 먼저 고정하세요."], 4),
-      checkpoints: withFallback(oneLine, ["이번 결론을 하루 한 번 소리 내어 점검하세요."], 3)
-    },
-    {
-      id: "flow",
-      title: "흐름 해부",
-      subtitle: "지금 흔들리는 원인과 진행축",
-      summary: withFallback(flowLines, ["현재 흐름의 병목과 가속 지점을 분리해 해석합니다."], 1)[0] ?? "",
-      insights: withFallback(flowLines, ["흐름은 감정보다 반복되는 패턴에서 결정됩니다."], 4),
-      actions: withFallback(nearTermLines, ["짧은 구간 목표를 먼저 고정하고 반응을 관찰하세요."], 4),
-      checkpoints: withFallback(dontLines, ["반응 하나로 전체 결론을 내리지 않기."], 3)
-    },
-    {
-      id: "self",
-      title: "내 상태 레이더",
-      subtitle: "내 감정·에너지·반응 패턴",
-      summary: withFallback(selfLines, ["내가 먼저 흔들리는 포인트를 찾아야 전략이 작동합니다."], 1)[0] ?? "",
-      insights: withFallback(selfLines, ["감정 소모 지점을 분리하면 판단 정확도가 올라갑니다."], 4),
-      actions: withFallback(doLines, ["지금 소모를 줄이는 기준 하나를 정하세요."], 4),
-      checkpoints: withFallback(responseLines, ["최근 답변 중 가장 불안했던 선택을 복기하세요."], 3)
-    },
-    {
-      id: "other",
-      title: "상대·환경 변수",
-      subtitle: "상대 속도와 외부 조건 분석",
-      summary: withFallback(otherLines, ["상대와 환경의 제약 조건을 분리해 읽어야 합니다."], 1)[0] ?? "",
-      insights: withFallback(otherLines, ["의도와 실행 속도를 따로 해석해야 오판이 줄어듭니다."], 4),
-      actions: withFallback(nearTermLines, ["상대 반응보다 조건 정렬을 먼저 점검하세요."], 4),
-      checkpoints: withFallback(followLines, ["내가 확인해야 할 사실 질문 1개를 먼저 정하세요."], 3)
-    },
-    {
-      id: "structure",
-      title: "구조 리스크 맵",
-      subtitle: "문제의 구조, 반복 패턴, 취약 지점",
-      summary: withFallback(structureLines, ["문제는 사건 하나보다 구조 반복에서 커집니다."], 1)[0] ?? "",
-      insights: withFallback(structureLines, ["패턴 단위로 나눠야 해결 우선순위가 명확해집니다."], 4),
-      actions: withFallback(doLines, ["구조를 끊는 행동 1개를 오늘 실행하세요."], 4),
-      checkpoints: withFallback(dontLines, ["익숙한 실패 패턴 재진입 여부를 점검하세요."], 3)
-    },
-    {
-      id: "scenario",
-      title: "근시기 시나리오 보드",
-      subtitle: "Best / Base / Risk 세 갈래 전망",
-      summary: withFallback(nearTermLines, ["가까운 시기에는 선택의 속도보다 정렬이 우선입니다."], 1)[0] ?? "",
-      insights: withFallback(
-        [
-          `Best: ${withFallback(doLines, ["핵심 행동이 유지될 때 안정적으로 개선됩니다."], 1)[0] ?? ""}`,
-          `Base: ${withFallback(nearTermLines, ["보수적 개선 흐름이 이어질 가능성이 큽니다."], 1)[0] ?? ""}`,
-          `Risk: ${withFallback(dontLines, ["반복 패턴을 방치하면 손실이 누적됩니다."], 1)[0] ?? ""}`
-        ],
-        ["Best/Base/Risk 조건을 분리해 대응 전략을 준비하세요."],
-        3
-      ),
-      actions: withFallback(doLines, ["시나리오별 대응 행동을 각각 1개씩 정하세요."], 4),
-      checkpoints: withFallback(followLines, ["시나리오를 가르는 질문 1개를 먼저 확인하세요."], 3)
-    },
-    {
-      id: "protocol",
-      title: "실행 프로토콜",
-      subtitle: "즉시 행동할 우선순위 플랜",
-      summary: withFallback(doLines, ["행동 순서를 고정하면 결과 변동성이 줄어듭니다."], 1)[0] ?? "",
-      insights: withFallback(doLines, ["실행은 작게 시작하고 반복으로 확장해야 합니다."], 4),
-      actions: withFallback(doLines, ["오늘 즉시 실행할 항목 1개를 완료하세요."], 4),
-      checkpoints: withFallback(oneLine, ["실행 후 결과를 짧게 기록해 루프를 닫으세요."], 3)
-    },
-    {
-      id: "risk-control",
-      title: "손실 방지 가이드",
-      subtitle: "피해야 할 패턴과 방어 규칙",
-      summary: withFallback(dontLines, ["손실은 대부분 반복 패턴에서 발생합니다."], 1)[0] ?? "",
-      insights: withFallback(dontLines, ["경계 문장을 먼저 정하면 오판 확률이 줄어듭니다."], 4),
-      actions: withFallback(doLines, ["위험 신호 감지 시 바로 멈출 규칙을 고정하세요."], 4),
-      checkpoints: withFallback(dontLines, ["오늘 다시 반복한 패턴이 있는지 확인하세요."], 3)
-    },
-    {
-      id: "decision",
-      title: "의사결정 매트릭스",
-      subtitle: "판단 기준 정렬과 선택 시뮬레이션",
-      summary: withFallback(oneLine, ["결정은 감정이 아니라 기준의 정렬에서 완성됩니다."], 1)[0] ?? "",
-      insights: withFallback(
-        [
-          "기준 1) 지속가능성: 이 선택을 3개월 유지할 수 있는가",
-          "기준 2) 관계비용: 내 감정·시간·에너지 비용이 감당 가능한가",
-          "기준 3) 회복가능성: 실패해도 복구 가능한가",
-          "기준 4) 확장성: 다음 단계로 이어지는가"
-        ],
-        ["판단 기준을 문장으로 고정하면 선택 속도가 빨라집니다."],
-        4
-      ),
-      actions: withFallback(doLines, ["선택지별 점수(1~5)를 직접 매겨 비교하세요."], 4),
-      checkpoints: withFallback(followLines, ["결정을 미루는 핵심 이유를 질문으로 분해하세요."], 3)
-    },
-    {
-      id: "expansion",
-      title: "후속 확장 리포트",
-      subtitle: "다음 상담에서 깊게 파고들 질문",
-      summary: withFallback(followLines, ["후속 질문이 많을수록 리포트 정밀도가 올라갑니다."], 1)[0] ?? "",
-      insights: withFallback(followLines, ["후속 질문은 다음 결정을 위한 레버리지입니다."], 4),
-      actions: withFallback(followLines, ["후속 질문 중 당장 필요한 2개를 우선 선택하세요."], 4),
-      checkpoints: withFallback(responseLines, ["기존 응답과 충돌하는 포인트를 다시 검증하세요."], 3)
-    }
-  ];
-}
-
-function buildPremiumRoadmap(result: ConsultationResult, session?: ConsultationSession): PremiumRoadmapPhase[] {
-  const cards = parseResultCards(result.cards);
-  const doLines = buildActionItems(cards.find((card) => card.key === "do"), 8).map((item) => item.text);
-  const dontLines = buildActionItems(cards.find((card) => card.key === "dont"), 8).map((item) => item.text);
-  const followLines =
-    result.recommendedQuestions.length > 0
-      ? result.recommendedQuestions
-      : cardLines(cards.find((card) => card.key === "followUp"), 6);
-  const responseLines = session ? session.responses.map((entry) => entry.label) : [];
-
-  return [
-    {
-      phase: "Phase 1 · 72시간",
-      focus: "불필요한 소모 차단과 기준 고정",
-      tasks: withFallback(
-        [...doLines, ...dontLines.map((line) => `중단 규칙: ${line}`)],
-        ["지금 바로 실행할 행동 1개와 멈출 행동 1개를 고정하세요."],
-        3
-      )
-    },
-    {
-      phase: "Phase 2 · 2주",
-      focus: "관찰 데이터 확보와 패턴 검증",
-      tasks: withFallback(
-        [...followLines, ...responseLines.map((line) => `응답 복기: ${line}`)],
-        ["2주 동안 변화 지표를 기록해 패턴을 검증하세요."],
-        3
-      )
-    },
-    {
-      phase: "Phase 3 · 4주",
-      focus: "결정 확정 및 전략 확장",
-      tasks: withFallback(
-        [...doLines, ...followLines.map((line) => `확장 질문: ${line}`)],
-        ["4주 시점에 유지할 전략과 버릴 전략을 분리하세요."],
-        3
-      )
-    }
-  ];
-}
-
-function sourceLabel(source: ConsultationResult["generationSource"]) {
-  switch (source) {
-    case "cloud":
-      return "클라우드";
-    case "fallback":
-      return "폴백";
-    default:
-      return "로컬";
-  }
-}
-
-function ResultReportVisuals({
-  result,
-  session
-}: {
-  result: ConsultationResult;
-  session?: ConsultationSession;
-}) {
-  const parsedCards = useMemo(() => parseResultCards(result.cards), [result.cards]);
-  const tagBreakdown = useMemo(() => buildTagBreakdown(result.tags), [result.tags]);
-  const metrics = useMemo(() => buildResultMetrics(result, session), [result, session]);
-  const doItems = useMemo(
-    () => buildActionItems(parsedCards.find((card) => card.key === "do")),
-    [parsedCards]
-  );
-  const dontItems = useMemo(
-    () => buildActionItems(parsedCards.find((card) => card.key === "dont")),
-    [parsedCards]
-  );
-  const nextItems = useMemo(() => {
-    if (result.recommendedQuestions.length > 0) {
-      return result.recommendedQuestions.slice(0, 4).map((question) => ({
-        label: "추가 질문",
-        text: question
-      }));
-    }
-    return buildActionItems(parsedCards.find((card) => card.key === "followUp"));
-  }, [parsedCards, result.recommendedQuestions]);
-  return (
-    <>
-      <section className="panel result-visual-grid">
-        <header className="result-visual-head">
-          <p className="overline">리포트 대시보드</p>
-          <h3>{result.summary}</h3>
-        </header>
-        <div className="result-metric-grid">
-          {metrics.map((metric) => (
-            <article key={metric.label} className="result-metric-card">
-              <p className="metric-title">
-                <IconLabel icon={metric.icon}>{metric.label}</IconLabel>
-              </p>
-              <p className="metric-value">{metric.value}%</p>
-              <p className="metric-caption">{metric.caption}</p>
-              <div className="metric-track" aria-hidden="true">
-                <span style={{ width: `${metric.value}%` }} />
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {tagBreakdown.length > 0 ? (
-        <section className="panel result-signal-panel">
-          <header className="result-visual-head compact">
-            <p className="overline">신호 분포</p>
-            <h3>응답 태그 기반 해석 비중</h3>
-          </header>
-          <div className="signal-table">
-            {tagBreakdown.map((item) => (
-              <div key={item.key} className="signal-row">
-                <div className="signal-label">
-                  <strong>{item.label}</strong>
-                  <small>{item.count}개</small>
-                </div>
-                <div className="signal-bar" aria-hidden="true">
-                  <span style={{ width: `${item.ratio}%` }} />
-                </div>
-                <span className="signal-ratio">{item.ratio}%</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="panel result-action-panel">
-        <header className="result-visual-head compact">
-          <p className="overline">전략 보드</p>
-          <h3>행동 / 주의 / 후속 탐색</h3>
-        </header>
-        <div className="result-action-grid">
-          <article className="result-action-column do">
-            <p className="result-action-head">
-              <UiIcon name="check" />
-              <span>지금 할 행동</span>
-            </p>
-            <ul className="action-list">
-              {doItems.map((item, index) => (
-                <li key={item.text + index} className="action-item">
-                  <strong>{item.label}</strong>
-                  <span>{item.text}</span>
-                </li>
-              ))}
-            </ul>
-          </article>
-          <article className="result-action-column dont">
-            <p className="result-action-head">
-              <UiIcon name="warning" />
-              <span>피해야 할 패턴</span>
-            </p>
-            <ul className="action-list">
-              {dontItems.map((item, index) => (
-                <li key={item.text + index} className="action-item">
-                  <strong>{item.label}</strong>
-                  <span>{item.text}</span>
-                </li>
-              ))}
-            </ul>
-          </article>
-          <article className="result-action-column next">
-            <p className="result-action-head">
-              <UiIcon name="link" />
-              <span>다음 질문</span>
-            </p>
-            <ul className="action-list">
-              {nextItems.map((item, index) => (
-                <li key={item.text + index} className="action-item">
-                  <strong>{item.label}</strong>
-                  <span>{item.text}</span>
-                </li>
-              ))}
-            </ul>
-          </article>
-        </div>
-      </section>
-    </>
-  );
-}
-
-function ResultCards({ result }: { result: ConsultationResult }) {
-  const cards = useMemo(() => parseResultCards(result.cards), [result.cards]);
-  const [expandedKeys, setExpandedKeys] = useState<ResultCardKey[]>([]);
-  const expandedSet = useMemo(() => new Set(expandedKeys), [expandedKeys]);
-
-  useEffect(() => {
-    setExpandedKeys([]);
-  }, [result.id]);
-
-  const allExpanded = cards.length > 0 && expandedKeys.length === cards.length;
-
-  const toggleAll = () => {
-    if (allExpanded) {
-      setExpandedKeys([]);
-      return;
-    }
-    setExpandedKeys(cards.map((card) => card.key));
-  };
-
-  const toggleCard = (key: ResultCardKey) => {
-    setExpandedKeys((current) =>
-      current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key]
-    );
-  };
-
-  return (
-    <section className="panel strategy-board">
-      <header className="strategy-board-head">
-        <div>
-          <p className="overline">10개 카테고리 해석</p>
-          <h3>사주 전략보드</h3>
-        </div>
-        <button type="button" className="button secondary small" onClick={toggleAll}>
-          <IconLabel icon={allExpanded ? "back" : "play"}>
-            {allExpanded ? "전체 접기" : "전체 펼치기"}
-          </IconLabel>
-        </button>
-      </header>
-
-      <div className="result-cards strategy-card-list">
-        {cards.map((card, index) => {
-          const isExpanded = expandedSet.has(card.key);
-          const icon = RESULT_CARD_ICON_MAP[card.key];
-          const meta = RESULT_BOARD_META[card.key];
-          const highlights = buildStrategyHighlights(card);
-          const leadLine = card.sections[0] ? sectionLead(card.sections[0]) : card.body;
-          const sectionTitles = card.sections.slice(0, 5).map((section) => section.title);
-
-          return (
-            <article
-              key={card.key}
-              className={"result-card strategy-card" + (isExpanded ? " expanded" : "")}
-              data-card-key={card.key}
-            >
-              <button
-                type="button"
-                className="strategy-card-toggle"
-                onClick={() => toggleCard(card.key)}
-                aria-expanded={isExpanded}
-              >
-                <header className="result-card-header">
-                  <span className="result-card-index">{index + 1}</span>
-                  <div className="result-card-title-wrap">
-                    <p className="result-card-badge">
-                      <UiIcon name={icon} />
-                      <span>{card.titleText}</span>
-                    </p>
-                    <p className="strategy-card-subtitle">{meta.subtitle}</p>
-                  </div>
-                </header>
-                <span className={"strategy-card-chevron" + (isExpanded ? " open" : "")} aria-hidden="true">
-                  <UiIcon name="arrowRight" />
-                </span>
-              </button>
-
-              {isExpanded ? (
-                <div className="strategy-card-body">
-                  <div className="strategy-card-perspective">
-                    <p>{meta.perspective}</p>
-                    <div className="strategy-chip-row">
-                      {sectionTitles.map((sectionTitle) => (
-                        <span key={card.key + sectionTitle} className="strategy-chip">
-                          {sectionTitle}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="strategy-card-grid">
-                    <section className="strategy-card-block">
-                      <h4>핵심 해석</h4>
-                      <p>{leadLine}</p>
-                      {highlights.length > 0 ? (
-                        <ul className="strategy-highlight-list">
-                          {highlights.map((item, highlightIndex) => (
-                            <li key={item.text + highlightIndex}>
-                              <strong>{item.sectionTitle}</strong>
-                              <span>{item.text}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </section>
-
-                    <section className="strategy-card-block">
-                      <h4>실행 체크리스트</h4>
-                      <ul className="strategy-check-list">
-                        {(highlights.length > 0 ? highlights : [{ sectionTitle: "기본", text: leadLine }]).map(
-                          (item, checklistIndex) => (
-                            <li key={item.text + checklistIndex}>
-                              <UiIcon name="check" />
-                              <span>{item.text}</span>
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </section>
-                  </div>
-
-                  <div className="result-card-sections">
-                    {card.sections.map((section, sectionIndex) => {
-                      const listItems = toListItems(section.body);
-                      return (
-                        <section key={`${card.key}-${section.title}-${sectionIndex}`} className="result-card-section">
-                          <h4>{section.title}</h4>
-                          {listItems.length > 1 ? (
-                            <ul className="result-section-list">
-                              {listItems.map((line, lineIndex) => (
-                                <li key={line + lineIndex}>{line}</li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className="card-body whitespace">{section.body}</p>
-                          )}
-                        </section>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function ResultSelectionTrail({ session }: { session?: ConsultationSession }) {
-  const trailItems = useMemo(() => buildTrailItems(session), [session]);
-  const [expandedSteps, setExpandedSteps] = useState<number[]>([]);
-  const expandedSet = useMemo(() => new Set(expandedSteps), [expandedSteps]);
-
-  useEffect(() => {
-    setExpandedSteps([]);
-  }, [session?.id, trailItems.length]);
-
-  if (trailItems.length === 0) {
-    return null;
-  }
-
-  const allExpanded = expandedSteps.length === trailItems.length;
-
-  const toggleAll = () => {
-    if (allExpanded) {
-      setExpandedSteps([]);
-      return;
-    }
-    setExpandedSteps(trailItems.map((item) => item.step));
-  };
-
-  const toggleStep = (step: number) => {
-    setExpandedSteps((current) =>
-      current.includes(step) ? current.filter((entry) => entry !== step) : [...current, step]
-    );
-  };
-
-  return (
-    <section className="panel result-selection-panel">
-      <header className="strategy-board-head">
-        <div>
-          <p className="overline">내가 선택한 답변</p>
-          <h3>응답 흐름 (하단 정리)</h3>
-        </div>
-        <button type="button" className="button secondary small" onClick={toggleAll}>
-          <IconLabel icon={allExpanded ? "back" : "play"}>
-            {allExpanded ? "전체 접기" : "전체 펼치기"}
-          </IconLabel>
-        </button>
-      </header>
-
-      <ol className="result-selection-list">
-        {trailItems.map((item) => {
-          const isExpanded = expandedSet.has(item.step);
-          return (
-            <li key={item.step + item.prompt} className={"result-selection-item" + (isExpanded ? " expanded" : "")}>
-              <button
-                type="button"
-                className="result-selection-toggle"
-                onClick={() => toggleStep(item.step)}
-                aria-expanded={isExpanded}
-              >
-                <span className="journey-step">{item.step}</span>
-                <div className="result-selection-main">
-                  <p className="journey-prompt">{item.prompt}</p>
-                  <p className="journey-answer">{item.answer}</p>
-                </div>
-                <span className={"strategy-card-chevron" + (isExpanded ? " open" : "")} aria-hidden="true">
-                  <UiIcon name="arrowRight" />
-                </span>
-              </button>
-
-              {isExpanded ? (
-                <div className="result-selection-body">
-                  <p className="muted">선택한 답변 상세</p>
-                  <p className="card-body whitespace">{item.answer}</p>
-                  {item.tags.length > 0 ? (
-                    <div className="strategy-chip-row">
-                      {item.tags.map((tag) => (
-                        <span key={item.step + tag} className="strategy-chip">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
-function PremiumResultReport({
-  result,
-  session
-}: {
-  result: ConsultationResult;
-  session?: ConsultationSession;
-}) {
-  const metrics = useMemo(() => buildPremiumMetrics(result, session), [result, session]);
-  const chapters = useMemo(() => buildPremiumChapters(result, session), [result, session]);
-  const roadmap = useMemo(() => buildPremiumRoadmap(result, session), [result, session]);
-  const signalMap = useMemo(() => buildTagBreakdown(result.tags), [result.tags]);
-
-  return (
-    <>
-      <section className="panel premium-report-hero">
-        <p className="overline">Premium Saju Report</p>
-        <h3>{result.summary}</h3>
-        <p>
-          이번 리포트는 단정형 문장이 아니라 흐름, 구조, 실행, 리스크 통제를 하나의 전략 문서처럼 묶어
-          설계했습니다.
-        </p>
-      </section>
-
-      <section className="panel premium-metric-panel">
-        <header className="result-visual-head compact">
-          <p className="overline">정량 스코어카드</p>
-          <h3>핵심 상태 진단 지표</h3>
-        </header>
-        <div className="premium-metric-grid">
-          {metrics.map((metric) => (
-            <article key={metric.label} className="premium-metric-card">
-              <p className="premium-metric-label">{metric.label}</p>
-              <p className="premium-metric-value">{metric.score}</p>
-              <p className="premium-metric-caption">{metric.caption}</p>
-              <div className="metric-track" aria-hidden="true">
-                <span style={{ width: `${metric.score}%` }} />
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {signalMap.length > 0 ? (
-        <section className="panel premium-signal-panel">
-          <header className="result-visual-head compact">
-            <p className="overline">신호 포트폴리오</p>
-            <h3>응답 데이터 분포</h3>
-          </header>
-          <div className="signal-table">
-            {signalMap.map((item) => (
-              <div key={item.key} className="signal-row">
-                <div className="signal-label">
-                  <strong>{item.label}</strong>
-                  <small>{item.count}개</small>
-                </div>
-                <div className="signal-bar" aria-hidden="true">
-                  <span style={{ width: `${item.ratio}%` }} />
-                </div>
-                <span className="signal-ratio">{item.ratio}%</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="premium-chapter-list">
-        {chapters.map((chapter, index) => (
-          <article key={chapter.id} className="panel premium-chapter">
-            <header className="premium-chapter-head">
-              <div>
-                <p className="overline">Chapter {index + 1}</p>
-                <h3>{chapter.title}</h3>
-                <p>{chapter.subtitle}</p>
-              </div>
-            </header>
-            <p className="premium-chapter-summary">{chapter.summary}</p>
-            <div className="premium-chapter-grid">
-              <section className="premium-chapter-block">
-                <h4>핵심 인사이트</h4>
-                <ul className="premium-list">
-                  {chapter.insights.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              </section>
-              <section className="premium-chapter-block">
-                <h4>실행 전략</h4>
-                <ul className="premium-list">
-                  {chapter.actions.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              </section>
-              <section className="premium-chapter-block">
-                <h4>점검 질문</h4>
-                <ul className="premium-list">
-                  {chapter.checkpoints.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              </section>
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <section className="panel premium-roadmap-panel">
-        <header className="result-visual-head compact">
-          <p className="overline">4주 실행 로드맵</p>
-          <h3>단기 실행 설계</h3>
-        </header>
-        <div className="premium-roadmap-grid">
-          {roadmap.map((phase) => (
-            <article key={phase.phase} className="premium-roadmap-card">
-              <p className="premium-roadmap-phase">{phase.phase}</p>
-              <p className="premium-roadmap-focus">{phase.focus}</p>
-              <ul className="premium-list">
-                {phase.tasks.map((task) => (
-                  <li key={task}>{task}</li>
-                ))}
-              </ul>
-            </article>
-          ))}
-        </div>
-      </section>
-    </>
-  );
-}
-
 function AppRouter() {
-  const navigate = useNavigate();
   const location = useLocation();
   const initializeCloud = useAppStore((state) => state.initializeCloud);
   const networkStatus = useAppStore((state) => state.networkStatus);
   const setNetworkStatus = useAppStore((state) => state.setNetworkStatus);
   const lastError = useAppStore((state) => state.lastError);
   const clearError = useAppStore((state) => state.clearError);
-  const reloadHandledRef = useRef(false);
-
-  useEffect(() => {
-    if (reloadHandledRef.current) {
-      return;
-    }
-    reloadHandledRef.current = true;
-    if (!isReloadNavigation() || location.pathname === "/") {
-      return;
-    }
-    navigate("/", { replace: true });
-  }, [location.pathname, navigate]);
+  const hideChrome = location.pathname.startsWith("/session/") || location.pathname.startsWith("/loading/");
 
   useEffect(() => {
     void initializeCloud();
@@ -1783,27 +562,30 @@ function AppRouter() {
     if (!lastError) {
       return undefined;
     }
-    const timeout = window.setTimeout(() => clearError(), 2600);
+    const timeout = window.setTimeout(() => clearError(), 3200);
     return () => window.clearTimeout(timeout);
-  }, [lastError, clearError]);
+  }, [clearError, lastError]);
 
   return (
-    <div className={"app-shell" + (location.pathname === "/" ? " app-shell-landing" : "")}>
-      {networkStatus === "offline" ? (
-        <div className="global-alert warning">
-          <IconLabel icon="warning">오프라인 상태입니다. 로컬 저장 기준으로 동작합니다.</IconLabel>
-        </div>
-      ) : null}
-      {lastError ? (
-        <div className="global-alert error">
-          <IconLabel icon="warning">{lastError}</IconLabel>
-        </div>
-      ) : null}
+    <div className={["app-shell", hideChrome ? "immersive" : ""].filter(Boolean).join(" ")}>
+      {hideChrome ? null : <TopChrome />}
+      <div className="alert-stack" aria-live="polite">
+        {networkStatus === "offline" ? (
+          <div className="global-alert warning">
+            <IconLabel icon="warning">오프라인 상태입니다. 상담 내용은 로컬에 저장됩니다.</IconLabel>
+          </div>
+        ) : null}
+        {lastError ? (
+          <div className="global-alert error">
+            <IconLabel icon="warning">{lastError}</IconLabel>
+          </div>
+        ) : null}
+      </div>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<HomePage />} />
         <Route path="/notice" element={<NoticePage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/topics" element={<TopicHomePage />} />
+        <Route path="/topics" element={<TopicPage />} />
         <Route path="/session/:sessionId" element={<SessionPage />} />
         <Route path="/review/:sessionId" element={<ReviewPage />} />
         <Route path="/loading/:sessionId" element={<LoadingPage />} />
@@ -1814,6 +596,7 @@ function AppRouter() {
         <Route path="/ops" element={<OpsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      {hideChrome ? null : <BottomNav />}
     </div>
   );
 }
@@ -1826,70 +609,116 @@ export function App() {
   );
 }
 
-function LandingPage() {
+function HomePage() {
   const navigate = useNavigate();
+  const acceptedNotice = useAppStore((state) => state.acceptedNotice);
   const sessions = useAppStore((state) => state.sessions);
+  const results = useAppStore((state) => state.results);
+  const profile = useAppStore((state) => state.profile);
   const cloudAuthProvider = useAppStore((state) => state.cloudAuthProvider);
   const cloudUserEmail = useAppStore((state) => state.cloudUserEmail);
   const signInKakao = useAppStore((state) => state.signInKakao);
-  const activeSession = useMemo(() => {
-    return [...sessions]
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .find(
-        (session) =>
-          ["draft", "review", "loading"].includes(session.status) &&
-          session.compatibility !== "outdated"
-      );
-  }, [sessions]);
+  const activeSession = useMemo(() => latestOpenSession(sessions), [sessions]);
+  const savedEntry = useMemo(() => latestSavedResult(results, sessions), [results, sessions]);
+  const featuredTopics = FEATURED_TOPIC_IDS.map(topicById);
 
-  const handleKakaoStart = async () => {
-    await signInKakao();
-  };
+  const startPath = acceptedNotice ? "/topics" : "/notice";
 
   return (
-    <ScreenFrame
-      className="landing-screen landing-onepage"
-      hideNav
-      hideHeader
-      hideTopbar
-      title="온결 사주"
-    >
-      <section className="landing-onepage-main">
-        <p className="landing-kicker">온결 사주</p>
-        <h1>오늘의 흐름을 빠르게 확인하세요</h1>
-        <p>질문에 답하면 지금 필요한 해석과 실행 포인트를 바로 정리해 드려요.</p>
+    <PageFrame className="home-page">
+      <section className="home-hero">
+        <p className="eyebrow">오늘의 상담</p>
+        <h1>지금 마음에 걸리는 흐름부터 가볍게 확인하세요.</h1>
+        <p>긴 풀이를 읽기 전에, 질문 몇 개로 현재 상황과 다음 행동을 먼저 정리합니다.</p>
+        <button className="search-cta" onClick={() => navigate(startPath)} type="button">
+          <IconLabel icon="spark">어떤 고민을 볼까요?</IconLabel>
+          <UiIcon name="arrowRight" />
+        </button>
       </section>
 
-      <div className="landing-onepage-actions">
-        <button className="button primary landing-start-button" onClick={() => navigate("/topics")}>
-          <IconLabel icon="play">시작하기</IconLabel>
+      <section className="quick-grid" aria-label="빠른 이동">
+        <button className="quick-tile" onClick={() => navigate("/topics")} type="button">
+          <UiIcon name="play" />
+          <span>상담 시작</span>
         </button>
-        {cloudAuthProvider === "kakao" ? (
-          <div className="landing-kakao-ready">
-            <span className="kakao-round-logo" aria-hidden="true">
-              K
-            </span>
-            <span>카카오 로그인 완료{cloudUserEmail ? ` · ${cloudUserEmail}` : ""}</span>
+        <Link className="quick-tile" to="/profile">
+          <UiIcon name="profile" />
+          <span>프로필</span>
+        </Link>
+        <Link className="quick-tile" to="/archive">
+          <UiIcon name="archive" />
+          <span>저장 결과</span>
+        </Link>
+        <Link className="quick-tile" to="/settings">
+          <UiIcon name="settings" />
+          <span>데이터 관리</span>
+        </Link>
+      </section>
+
+      {activeSession ? (
+        <button className="wide-card continue-card" onClick={() => navigate(sessionPath(activeSession))} type="button">
+          <div>
+            <p className="eyebrow">이어서 보기</p>
+            <h2>{topicById(activeSession.topicId).label} 상담이 진행 중입니다.</h2>
+            <p>{activeSession.responses.length}개 답변 완료 · {modeLabel(activeSession.consultMode)}</p>
           </div>
+          <UiIcon name="arrowRight" />
+        </button>
+      ) : null}
+
+      {savedEntry ? (
+        <Link className="wide-card saved-card" to={resultPath(savedEntry.result.id)}>
+          <div>
+            <p className="eyebrow">최근 저장 결과</p>
+            <h2>{savedEntry.result.summary}</h2>
+            <p>{formatDateTime(savedEntry.result.generatedAt)}</p>
+          </div>
+          <UiIcon name="arrowRight" />
+        </Link>
+      ) : null}
+
+      <section className="section-stack">
+        <div className="section-head">
+          <div>
+            <p className="eyebrow">추천 주제</p>
+            <h2>많이 보는 흐름</h2>
+          </div>
+          <Link className="text-link" to="/topics">
+            전체 보기
+          </Link>
+        </div>
+        <div className="topic-card-grid">
+          {featuredTopics.map((topic) => (
+            <button
+              key={topic.id}
+              className="topic-card"
+              onClick={() => navigate("/topics", { state: { topicId: topic.id } })}
+              style={topicStyle(topic)}
+              type="button"
+            >
+              <span className="topic-mark" />
+              <strong>{topic.label}</strong>
+              <p>{topic.shortBlurb}</p>
+              <small>약 {topic.estimatedMinutes}분</small>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="account-strip">
+        <div>
+          <p className="eyebrow">현재 프로필</p>
+          <p>{formatProfileSummary(profile)}</p>
+        </div>
+        {cloudAuthProvider === "kakao" ? (
+          <span className="state-pill">카카오 연결됨{cloudUserEmail ? ` · ${cloudUserEmail}` : ""}</span>
         ) : (
-          <button
-            className="button kakao landing-start-button landing-kakao-start-button"
-            onClick={() => void handleKakaoStart()}
-            type="button"
-          >
-            <span className="kakao-round-logo" aria-hidden="true">
-              K
-            </span>
-            <span>카카오로 시작하기</span>
+          <button className="button secondary small" onClick={() => void signInKakao()} type="button">
+            카카오 연결
           </button>
         )}
-        {activeSession ? (
-          <button className="button ghost" onClick={() => navigate(sessionPath(activeSession))}>
-            <IconLabel icon="archive">이어서 하기</IconLabel>
-          </button>
-        ) : null}
-      </div>
-    </ScreenFrame>
+      </section>
+    </PageFrame>
   );
 }
 
@@ -1898,42 +727,46 @@ function NoticePage() {
   const setAcceptedNotice = useAppStore((state) => state.setAcceptedNotice);
 
   return (
-    <ScreenFrame
-      eyebrow="서비스 유의사항"
-      title="결과를 해석할 때 지킬 기준을 먼저 안내합니다."
-      subtitle="단정적인 예언 대신 흐름과 선택 기준을 중심으로 결과를 제공합니다."
+    <PageFrame
+      eyebrow="시작 전 안내"
+      title="결과는 단정이 아니라 선택 기준으로 제공합니다."
+      description="불안을 키우는 예언형 문장보다 현재 흐름, 반복 패턴, 다음 행동을 정리하는 데 초점을 둡니다."
       footer={
-        <div className="action-stack">
+        <div className="footer-actions">
           <button
             className="button primary"
             onClick={() => {
               setAcceptedNotice(true);
               navigate("/topics");
             }}
+            type="button"
           >
             <IconLabel icon="check">확인하고 시작</IconLabel>
           </button>
           <Link className="button ghost" to="/">
-            <IconLabel icon="back">처음으로</IconLabel>
+            홈으로
           </Link>
         </div>
       }
     >
-      <div className="notice-list">
-        <article className="panel notice-item">
-          <IconLabel icon="notice">단정 대신 경향 중심으로 해석합니다.</IconLabel>
-          <p>결과는 참고용 상담 문장입니다. 실제 결정은 현실 정보와 함께 판단해 주세요.</p>
+      <div className="notice-grid">
+        <article className="info-card">
+          <UiIcon name="spark" />
+          <h2>흐름 중심</h2>
+          <p>좋다, 나쁘다보다 지금 어느 기준을 먼저 세워야 하는지 보여줍니다.</p>
         </article>
-        <article className="panel notice-item">
-          <IconLabel icon="clock">출생시간 미입력 시 큰 흐름 중심으로 제공됩니다.</IconLabel>
-          <p>출생시간이 없으면 세부 시기보다 구조와 방향성 중심으로 안내됩니다.</p>
+        <article className="info-card">
+          <UiIcon name="clock" />
+          <h2>출생시간 안내</h2>
+          <p>출생시간을 모르면 큰 흐름 중심으로 제공하고, 결과 상단에 정확도 안내를 표시합니다.</p>
         </article>
-        <article className="panel notice-item">
-          <IconLabel icon="warning">의료·법률·재정 판단은 별도 근거가 필요합니다.</IconLabel>
-          <p>전문 판단이 필요한 사안은 관련 자료와 전문가 의견을 함께 확인하세요.</p>
+        <article className="info-card">
+          <UiIcon name="warning" />
+          <h2>현실 판단 병행</h2>
+          <p>의료, 법률, 재정 판단은 반드시 현실 자료와 전문가 의견을 함께 확인해야 합니다.</p>
         </article>
       </div>
-    </ScreenFrame>
+    </PageFrame>
   );
 }
 
@@ -1954,194 +787,131 @@ function ProfilePage() {
       birthTime: form.birthDate && !form.birthTimeUnknown ? form.birthTime : "",
       birthTimeUnknown: !form.birthDate || form.birthTimeUnknown || !form.birthTime
     };
-
     updateProfile(normalized);
     navigate("/topics");
   };
-  const profileBirth =
-    form.birthDate && form.birthCalendar
-      ? `${form.birthDate} · ${calendarLabel(form.birthCalendar)}`
-      : "생년월일 미입력";
-  const profileTime = form.birthDate
-    ? form.birthTimeUnknown
-      ? "출생시간 모름"
-      : form.birthTime || "출생시간 미입력"
-    : "출생시간 미입력";
 
   return (
-    <ScreenFrame
+    <PageFrame
       eyebrow="프로필"
-      title="프로필을 깔끔하게 정리하세요."
-      subtitle="입력할수록 해석 카드가 구체적으로 바뀝니다."
+      title="필요한 만큼만 입력하세요."
+      description="건너뛰어도 상담은 가능하지만, 생년월일과 출생시간이 있으면 결과가 더 구체적입니다."
       footer={
-        <div className="action-stack">
-          <button className="button primary" onClick={submit}>
-            <IconLabel icon="save">저장하고 주제 선택</IconLabel>
+        <div className="footer-actions">
+          <button className="button primary" onClick={submit} type="button">
+            <IconLabel icon="save">저장하고 계속</IconLabel>
           </button>
-          <Link className="button ghost" to="/topics">
-            <IconLabel icon="play">입력 없이 시작</IconLabel>
-          </Link>
+          <button
+            className="button ghost"
+            onClick={() => {
+              updateProfile({ ...EMPTY_PROFILE });
+              navigate("/topics");
+            }}
+            type="button"
+          >
+            입력 없이 시작
+          </button>
         </div>
       }
     >
-      <section className="profile-hero">
-        <div className="profile-avatar-badge" aria-hidden="true">
+      <section className="profile-summary-card">
+        <span className="profile-avatar">
           <UiIcon name="profile" />
-        </div>
-        <div className="profile-hero-main">
-          <p className="overline">현재 입력 상태</p>
-          <h3>{form.nickname.trim() || "이름 미입력"}</h3>
+        </span>
+        <div>
+          <p className="eyebrow">입력 상태</p>
+          <h2>{form.nickname.trim() || "이름 미입력"}</h2>
           <p>{formatProfileSummary(form)}</p>
-        </div>
-        <div className="profile-snapshot-grid">
-          <span className="profile-snapshot-chip">
-            <UiIcon name="notice" />
-            {profileBirth}
-          </span>
-          <span className="profile-snapshot-chip">
-            <UiIcon name="clock" />
-            {profileTime}
-          </span>
-          <span className="profile-snapshot-chip">
-            <UiIcon name="spark" />
-            {genderLabel(form.gender)}
-          </span>
         </div>
       </section>
 
-      <div className="stack compact-stack">
+      <div className="form-grid">
         <label className="field">
-          <span>
-            <IconLabel icon="profile">닉네임</IconLabel>
-          </span>
+          <span>닉네임</span>
           <input
-            placeholder="상담에서 사용할 이름"
             value={form.nickname}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, nickname: event.target.value }))
-            }
+            onChange={(event) => setForm((current) => ({ ...current, nickname: event.target.value }))}
+            placeholder="이름 또는 별명"
           />
         </label>
-
-        <div className="info-grid profile-grid">
-          <label className="field">
-            <span>
-              <IconLabel icon="notice">생년월일</IconLabel>
-            </span>
-            <input
-              type="date"
-              value={form.birthDate}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, birthDate: event.target.value }))
-              }
-            />
-          </label>
-
-          <label className="field">
-            <span>
-              <IconLabel icon="clock">출생시간</IconLabel>
-            </span>
-            <input
-              type="time"
-              value={form.birthTime}
-              disabled={form.birthTimeUnknown || !form.birthDate}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, birthTime: event.target.value }))
-              }
-            />
-          </label>
-        </div>
-
+        <label className="field">
+          <span>생년월일</span>
+          <input
+            value={form.birthDate}
+            onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
+            type="date"
+          />
+        </label>
         <div className="field">
-          <span>
-            <IconLabel icon="chart">달력 기준</IconLabel>
-          </span>
-          <div className="segmented-control">
-            {([
-              { label: "양력", value: "solar" },
-              { label: "음력", value: "lunar" }
-            ] as const).map((calendarOption) => (
+          <span>달력 기준</span>
+          <div className="segmented">
+            {(["solar", "lunar"] as const).map((calendar) => (
               <button
-                key={calendarOption.value}
-                className={
-                  "segment-button" +
-                  (form.birthCalendar === calendarOption.value ? " active" : "")
-                }
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    birthCalendar: calendarOption.value
-                  }))
-                }
+                key={calendar}
+                className={form.birthCalendar === calendar ? "active" : ""}
+                onClick={() => setForm((current) => ({ ...current, birthCalendar: calendar }))}
+                type="button"
               >
-                {calendarOption.label}
+                {calendarLabel(calendar)}
               </button>
             ))}
           </div>
         </div>
-
-        <label className="checkbox-row mini-checkbox">
+        <label className="field">
+          <span>출생시간</span>
           <input
-            type="checkbox"
+            disabled={form.birthTimeUnknown}
+            value={form.birthTime}
+            onChange={(event) => setForm((current) => ({ ...current, birthTime: event.target.value }))}
+            type="time"
+          />
+        </label>
+        <label className="check-row">
+          <input
             checked={form.birthTimeUnknown}
             onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                birthTimeUnknown: event.target.checked,
-                birthTime: event.target.checked ? "" : current.birthTime || "12:00"
-              }))
+              setForm((current) => ({ ...current, birthTimeUnknown: event.target.checked }))
             }
+            type="checkbox"
           />
-          <span>출생시간은 모름</span>
+          <span>출생시간을 몰라요</span>
         </label>
-
         <div className="field">
-          <span>
-            <IconLabel icon="spark">성별</IconLabel>
-          </span>
-          <div className="chip-row">
-            {[
-              { label: "여성", value: "female" },
-              { label: "남성", value: "male" },
-              { label: "기타", value: "other" }
-            ].map((item) => (
+          <span>성별</span>
+          <div className="segmented three">
+            {(["female", "male", "other"] as const).map((gender) => (
               <button
-                key={item.value}
-                className={"chip" + (form.gender === item.value ? " active" : "")}
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    gender: item.value as UserProfile["gender"]
-                  }))
-                }
+                key={gender}
+                className={form.gender === gender ? "active" : ""}
+                onClick={() => setForm((current) => ({ ...current, gender }))}
+                type="button"
               >
-                {item.label}
+                {genderLabel(gender)}
               </button>
             ))}
           </div>
         </div>
       </div>
-    </ScreenFrame>
+    </PageFrame>
   );
 }
 
-function TopicHomePage() {
+function TopicPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const consultMode = useAppStore((state) => state.consultMode);
   const setConsultMode = useAppStore((state) => state.setConsultMode);
+  const profile = useAppStore((state) => state.profile);
   const sessions = useAppStore((state) => state.sessions);
   const startSession = useAppStore((state) => state.startSession);
+  const incomingTopicId = (location.state as { topicId?: TopicId } | null)?.topicId;
+  const incomingGroup = TOPIC_GROUPS.find((group) => incomingTopicId && group.topics.includes(incomingTopicId));
+  const [selectedGroupId, setSelectedGroupId] = useState<TopicGroupId>(incomingGroup?.id ?? "relationship");
+  const [selectedTopicId, setSelectedTopicId] = useState<TopicId>(incomingTopicId ?? "romance");
   const [selectedMode, setSelectedMode] = useState<ConsultationMode>(consultMode);
-  const [selectedTopicId, setSelectedTopicId] = useState<TopicId>(TOPICS[0].id);
-  const selectedTopic = useMemo(
-    () => TOPICS.find((topic) => topic.id === selectedTopicId) ?? TOPICS[0],
-    [selectedTopicId]
-  );
-
-  useEffect(() => {
-    setSelectedMode(consultMode);
-  }, [consultMode]);
-
+  const selectedGroup = TOPIC_GROUPS.find((group) => group.id === selectedGroupId) ?? TOPIC_GROUPS[0];
+  const topics = selectedGroup.topics.map(topicById);
+  const selectedTopic = topicById(selectedTopicId);
   const selectedOpenSession = useMemo(
     () =>
       [...sessions]
@@ -2156,156 +926,121 @@ function TopicHomePage() {
     [selectedMode, selectedTopic.id, sessions]
   );
 
-  const launchSelectedTopic = (forceRestart = false) => {
+  const chooseGroup = (group: TopicGroup) => {
+    setSelectedGroupId(group.id);
+    setSelectedTopicId(group.topics[0]);
+  };
+
+  const launch = (forceRestart = false) => {
     try {
+      setConsultMode(selectedMode);
       const session = startSession(selectedTopic.id, forceRestart, selectedMode);
-      if (!session) {
-        return;
+      if (session) {
+        navigate(sessionPath(session));
       }
-      navigate(sessionPath(session));
     } catch {
-      useAppStore.setState({
-        lastError: "상담 시작 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
-      });
+      useAppStore.setState({ lastError: "상담 시작 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." });
     }
   };
 
   return (
-    <ScreenFrame
-      className="topic-worldcup-screen"
-      hideNav
-      title="주제만 고르면 바로 시작됩니다."
-      subtitle="상담 방식과 주제를 각각 하나씩 선택하세요."
+    <PageFrame
+      eyebrow="상담 주제"
+      title="고민을 먼저 고르면 질문이 짧아집니다."
+      description="주제와 상담 깊이를 선택하면 지금 필요한 질문만 이어집니다."
       footer={
-        <div className="topic-worldcup-actions">
+        <div className="footer-actions">
           {selectedOpenSession ? (
             <>
-              <button
-                className="button primary"
-                onClick={() => launchSelectedTopic(false)}
-                type="button"
-              >
-                <IconLabel icon="play">이어서 시작</IconLabel>
+              <button className="button primary" onClick={() => launch(false)} type="button">
+                <IconLabel icon="play">이어서 보기</IconLabel>
               </button>
-              <button
-                className="button ghost"
-                onClick={() => launchSelectedTopic(true)}
-                type="button"
-              >
-                <IconLabel icon="spark">새로 시작</IconLabel>
+              <button className="button ghost" onClick={() => launch(true)} type="button">
+                새로 시작
               </button>
             </>
           ) : (
-            <button className="button primary" onClick={() => launchSelectedTopic()} type="button">
-              <IconLabel icon="play">시작하기</IconLabel>
+            <button className="button primary" onClick={() => launch(true)} type="button">
+              <IconLabel icon="play">상담 시작</IconLabel>
             </button>
           )}
         </div>
       }
     >
-      <section className="topic-worldcup-shell">
-        <div className="worldcup-choice-group">
-          <h3>상담 방식</h3>
-          <div className="worldcup-mode-grid">
-            {([
-              {
-                id: "quick",
-                title: "간단하게 보기",
-                detail: "9문항 · 빠른 진단",
-                icon: "clock"
-              },
-              {
-                id: "focused",
-                title: "집중해서 보기",
-                detail: "22문항 · 깊은 분석",
-                icon: "chart"
-              }
-            ] as const).map((modeOption) => (
+      <section className="profile-nudge">
+        <div>
+          <p className="eyebrow">프로필</p>
+          <p>{formatProfileSummary(profile)}</p>
+        </div>
+        <Link className="button ghost small" to="/profile">
+          수정
+        </Link>
+      </section>
+
+      <section className="mode-selector" aria-label="상담 방식">
+        {(["quick", "focused"] as const).map((mode) => (
+          <button
+            key={mode}
+            className={selectedMode === mode ? "active" : ""}
+            onClick={() => setSelectedMode(mode)}
+            type="button"
+          >
+            <UiIcon name={mode === "quick" ? "spark" : "chart"} />
+            <strong>{modeLabel(mode)}</strong>
+            <span>{modeQuestionRange(mode)} · 약 {modeEstimatedMinutes(selectedTopic, mode)}분</span>
+          </button>
+        ))}
+      </section>
+
+      <section className="topic-layout">
+        <div className="topic-main">
+          <div className="group-tabs" role="tablist" aria-label="주제 그룹">
+            {TOPIC_GROUPS.map((group) => (
               <button
-                key={modeOption.id}
-                className={
-                  "worldcup-mode-card" + (selectedMode === modeOption.id ? " active" : "")
-                }
-                onClick={() => {
-                  setSelectedMode(modeOption.id);
-                  setConsultMode(modeOption.id);
-                }}
+                key={group.id}
+                className={selectedGroupId === group.id ? "active" : ""}
+                onClick={() => chooseGroup(group)}
                 type="button"
               >
-                <span className="worldcup-mode-icon" aria-hidden="true">
-                  <UiIcon name={modeOption.icon} />
+                <strong>{group.label}</strong>
+                <span>{group.description}</span>
+              </button>
+            ))}
+          </div>
+          <div className="topic-list">
+            {topics.map((topic) => (
+              <button
+                key={topic.id}
+                className={selectedTopic.id === topic.id ? "topic-row active" : "topic-row"}
+                onClick={() => setSelectedTopicId(topic.id)}
+                style={topicStyle(topic)}
+                type="button"
+              >
+                <span className="topic-mark" />
+                <span>
+                  <strong>{topic.label}</strong>
+                  <small>{topic.shortBlurb}</small>
                 </span>
-                <div>
-                  <strong>{modeOption.title}</strong>
-                  <span>{modeOption.detail}</span>
-                </div>
+                <UiIcon name="arrowRight" />
               </button>
             ))}
           </div>
         </div>
 
-        <div className="worldcup-choice-group">
-          <h3>상담 주제</h3>
-          <div className="worldcup-topic-list">
-            {TOPICS.map((topic) => {
-              const preview = TOPIC_PREVIEW_TEMPLATES[topic.id];
-              return (
-                <button
-                  key={topic.id}
-                  className={
-                    "worldcup-topic-card topic-tone-" +
-                    topic.id +
-                    (selectedTopic.id === topic.id ? " active" : "")
-                  }
-                  onClick={() => setSelectedTopicId(topic.id)}
-                  type="button"
-                >
-                  <img
-                    className="worldcup-topic-image"
-                    src={TOPIC_PREVIEW_IMAGES[topic.id]}
-                    alt={`${topic.label} 주제 미리보기`}
-                    loading="lazy"
-                  />
-                  <div className="worldcup-topic-content">
-                    <div className="worldcup-topic-head">
-                      <span className="topic-dot" style={{ backgroundColor: topic.accent }} />
-                      <strong>{topic.label}</strong>
-                    </div>
-                    <p className="worldcup-topic-brief">{topic.shortBlurb}</p>
-                    <div className="worldcup-topic-meta-inline">
-                      <span>{modeQuestionRange(selectedMode)}</span>
-                      <span>약 {modeEstimatedMinutes(topic, selectedMode)}분</span>
-                    </div>
-                    <p className="worldcup-topic-report-title">{preview.summary}</p>
-                    <div className="worldcup-topic-preview-pills">
-                      {preview.points.slice(0, 2).map((point) => (
-                        <span key={point}>{point}</span>
-                      ))}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+        <aside className="topic-preview" style={topicStyle(selectedTopic)}>
+          <span className="topic-mark large" />
+          <p className="eyebrow">선택한 주제</p>
+          <h2>{selectedTopic.label}</h2>
+          <p>{selectedTopic.description}</p>
+          <blockquote>{selectedTopic.featuredPrompt}</blockquote>
+          <div className="meta-pills">
+            <span>{modeLabel(selectedMode)}</span>
+            <span>{modeQuestionRange(selectedMode)}</span>
+            <span>약 {modeEstimatedMinutes(selectedTopic, selectedMode)}분</span>
           </div>
-          <div className="worldcup-selected-summary">
-            <strong>선택됨</strong>
-            <span>
-              {selectedTopic.label} · {modeLabel(selectedMode)}
-            </span>
-            <span>
-              {modeQuestionRange(selectedMode)} · 약 {modeEstimatedMinutes(selectedTopic, selectedMode)}분
-            </span>
-          </div>
-          {selectedOpenSession ? (
-            <div className="worldcup-resume-note">
-              <IconLabel icon="archive">
-                같은 주제로 진행 중인 상담이 있어 이어서 시작할 수 있습니다.
-              </IconLabel>
-            </div>
-          ) : null}
-        </div>
+        </aside>
       </section>
-    </ScreenFrame>
+    </PageFrame>
   );
 }
 
@@ -2315,161 +1050,124 @@ function SessionPage() {
   const sessions = useAppStore((state) => state.sessions);
   const submitAnswer = useAppStore((state) => state.submitAnswer);
   const goBack = useAppStore((state) => state.goBack);
-  const markLoading = useAppStore((state) => state.markLoading);
   const startSession = useAppStore((state) => state.startSession);
   const session = sessions.find((entry) => entry.id === sessionId);
 
   if (!session) {
     return <Navigate to="/topics" replace />;
   }
-
   if (session.status === "review") {
-    return <Navigate to={`/loading/${session.id}`} replace />;
+    return <Navigate to={`/review/${session.id}`} replace />;
   }
-
   if (session.status === "loading") {
     return <Navigate to={`/loading/${session.id}`} replace />;
   }
-
   if (session.status === "result" && session.resultId) {
     return <Navigate to={resultPath(session.resultId)} replace />;
   }
 
   if (session.status === "outdated") {
     return (
-      <ScreenFrame
-        eyebrow="세션 보호"
-        title="질문 구조가 변경되어 기존 세션을 그대로 이어갈 수 없습니다."
-        subtitle="기존 응답은 보호 상태로 남기고, 최신 버전 기준으로 새 세션을 시작합니다."
-        footer={
-          <div className="action-stack">
-            <button
-              className="button primary"
-              onClick={() => {
-                try {
-                  const next = startSession(session.topicId, true, session.consultMode);
-                  if (!next) {
-                    return;
-                  }
-                  navigate(sessionPath(next), { replace: true });
-                } catch {
-                  useAppStore.setState({
-                    lastError: "세션 재시작 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
-                  });
-                }
-              }}
-            >
-              <IconLabel icon="play">현재 버전으로 다시 시작</IconLabel>
-            </button>
-            <Link className="button ghost" to="/topics">
-              <IconLabel icon="back">주제 목록으로</IconLabel>
-            </Link>
-          </div>
-        }
-      >
-        <div className="panel warning-panel">
-          <p className="overline">호환성 상태</p>
-          <h3>현재 질문 카탈로그와 기존 노드가 일치하지 않습니다.</h3>
-          <p>실서비스에서는 마이그레이션 로그와 운영자 알림을 함께 남기는 구조를 권장합니다.</p>
-        </div>
-      </ScreenFrame>
+      <main className="session-shell">
+        <section className="state-screen">
+          <UiIcon name="warning" />
+          <h1>질문 구조가 변경되었습니다.</h1>
+          <p>기존 응답은 보호하고, 최신 질문 기준으로 새 상담을 시작할 수 있습니다.</p>
+          <button
+            className="button primary"
+            onClick={() => {
+              const next = startSession(session.topicId, true, session.consultMode);
+              if (next) {
+                navigate(sessionPath(next), { replace: true });
+              }
+            }}
+            type="button"
+          >
+            다시 시작
+          </button>
+        </section>
+      </main>
     );
   }
 
   const flow = FLOW_MAP[session.topicId];
   const node = getNode(flow, session.currentNodeId);
+  const topic = topicById(session.topicId);
+  const progress = getProgressPercent(session);
 
   if (!node) {
-    return <Navigate to={`/loading/${session.id}`} replace />;
+    return <Navigate to={`/review/${session.id}`} replace />;
   }
 
-  const progress = getProgressPercent(session);
-  const topic = topicById(session.topicId);
-  const currentStep = session.responses.length + 1;
-  const totalSteps = session.consultMode === "focused" ? 22 : 9;
-  const backLabel = session.responses.length === 0 ? "주제로 돌아가기" : "이전 질문";
-
   return (
-    <ScreenFrame
-      className="session-quick-screen"
-      title="질문"
-      hideTopbar
-      hideHeader
-      footer={
-        <div className="action-stack session-quick-footer">
-          <button
-            className="button ghost"
-            onClick={() => {
-              if (session.responses.length === 0) {
-                navigate("/topics");
-                return;
-              }
-              goBack(session.id);
-            }}
-          >
-            <IconLabel icon="back">{backLabel}</IconLabel>
-          </button>
+    <main className="session-shell">
+      <header className="session-top">
+        <button className="icon-button" onClick={() => navigate("/topics")} type="button" aria-label="주제 선택으로 이동">
+          <UiIcon name="arrowLeft" />
+        </button>
+        <div>
+          <p>{topic.label} · {modeLabel(session.consultMode)}</p>
+          <strong>{session.responses.length + 1}번째 질문</strong>
         </div>
-      }
-    >
-      <section className="panel session-quick-head">
-        <div className="session-quick-meta">
-          <span className="badge">{topic.label}</span>
-          <span>
-            Q{Math.min(currentStep, totalSteps)} / {totalSteps}
-          </span>
-          <span>{modeLabel(session.consultMode)}</span>
-          <span>{progress}%</span>
-        </div>
-        <h2>{node.prompt}</h2>
+        <button
+          className="icon-button"
+          disabled={session.responses.length === 0}
+          onClick={() => goBack(session.id)}
+          type="button"
+          aria-label="이전 질문"
+        >
+          <UiIcon name="edit" />
+        </button>
+      </header>
+
+      <div className="progress-track" aria-label={`진행률 ${progress}%`}>
+        <span style={{ width: `${progress}%` }} />
+      </div>
+
+      <section className="question-card" style={topicStyle(topic)}>
+        <span className="topic-mark" />
+        <p className="eyebrow">답변을 고르면 다음 질문으로 이어집니다.</p>
+        <h1>{node.prompt}</h1>
         {node.helper ? <p>{node.helper}</p> : null}
-        <div className="progress-caption">
-          <span>
-            {Math.min(currentStep, totalSteps)} / {totalSteps}
-          </span>
-          <span>{progress}% 진행</span>
-        </div>
-        <div className="progress-track session-quick-track">
-          <span style={{ width: `${progress}%` }} />
-        </div>
       </section>
 
-      {session.compatibility === "warning" ? (
-        <div className="panel notice-panel">
-          <IconLabel icon="warning">질문 카탈로그가 업데이트되어 최신 버전 기준으로 이어집니다.</IconLabel>
-        </div>
-      ) : null}
-
-      <div className="choice-list session-choice-list">
+      <section className="choice-list" aria-label="답변 선택">
         {node.options.map((option, index) => (
           <button
             key={option.id}
             className="choice-card"
             onClick={() => {
               const updated = submitAnswer(session.id, node.id, option.id);
-              if (!updated) {
-                return;
+              if (updated?.status === "review") {
+                navigate(`/review/${session.id}`);
               }
-              if (updated.status === "review") {
-                markLoading(updated.id);
-                navigate(`/loading/${updated.id}`, { replace: true });
-                return;
-              }
-              navigate(sessionPath(updated), { replace: true });
             }}
+            type="button"
           >
-            <div className="choice-head">
-              <div className="choice-title-wrap">
-                <span className="choice-index">{index + 1}</span>
-                <strong>{option.label}</strong>
-              </div>
-                <UiIcon name="arrowRight" />
-              </div>
-            {option.description && session.consultMode === "focused" ? <p>{option.description}</p> : null}
+            <span className="choice-index">{index + 1}</span>
+            <span>
+              <strong>{option.label}</strong>
+              {option.description ? <small>{option.description}</small> : null}
+            </span>
+            <UiIcon name="arrowRight" />
           </button>
         ))}
-      </div>
-    </ScreenFrame>
+      </section>
+
+      <footer className="session-footer">
+        <button className="button ghost" onClick={() => navigate("/topics")} type="button">
+          나가기
+        </button>
+        <button
+          className="button secondary"
+          disabled={session.responses.length === 0}
+          onClick={() => navigate(`/review/${session.id}`)}
+          type="button"
+        >
+          답변 검토
+        </button>
+      </footer>
+    </main>
   );
 }
 
@@ -2484,96 +1182,76 @@ function ReviewPage() {
   if (!session) {
     return <Navigate to="/topics" replace />;
   }
-
   if (session.status === "result" && session.resultId) {
     return <Navigate to={resultPath(session.resultId)} replace />;
   }
 
   const flow = FLOW_MAP[session.topicId];
+  const topic = topicById(session.topicId);
 
   return (
-    <ScreenFrame
+    <PageFrame
       eyebrow="답변 검토"
-      title="답변을 한 번 더 확인하세요."
-      subtitle="수정 후 바로 결과를 생성할 수 있습니다."
+      title="결과를 만들기 전에 흐름을 한 번 확인하세요."
+      description={`${topic.label} · ${modeLabel(session.consultMode)} · ${session.responses.length}개 답변`}
       footer={
-        <div className="action-stack">
+        <div className="footer-actions">
           <button
             className="button primary"
             onClick={() => {
               markLoading(session.id);
               navigate(`/loading/${session.id}`);
             }}
+            type="button"
           >
-            <IconLabel icon="play">결과 생성 시작</IconLabel>
+            <IconLabel icon="play">결과 보기</IconLabel>
           </button>
           <Link className="button ghost" to={`/session/${session.id}`}>
-            <IconLabel icon="back">질문으로 돌아가기</IconLabel>
+            질문으로
           </Link>
         </div>
       }
     >
-      <section className="review-summary-strip">
-        <span className="review-summary-chip">
-          <UiIcon name="chart" />
-          답변 {session.responses.length}개
-        </span>
-        <span className="review-summary-chip">
-          <UiIcon name="clock" />
-          {modeLabel(session.consultMode)}
-        </span>
-        <span className="review-summary-chip">
-          <UiIcon name="profile" />
-          {session.profileSnapshot.birthDate ? "프로필 입력됨" : "빠른 시작"}
-        </span>
+      <section className="profile-nudge">
+        <div>
+          <p className="eyebrow">기본 정보</p>
+          <p>{formatProfileSummary(session.profileSnapshot)}</p>
+        </div>
+        <span className="state-pill">{session.profileSnapshot.birthTimeUnknown ? "큰 흐름 중심" : "출생시간 반영"}</span>
       </section>
 
-      <div className="panel soft">
-        <p className="overline">기본 정보</p>
-        <p>{formatProfileSummary(session.profileSnapshot)}</p>
-      </div>
-
-      {session.responses.length === 0 ? (
-        <div className="panel">
-          <h3>아직 답변한 질문이 없습니다.</h3>
-          <p>질문 화면으로 돌아가 첫 답변부터 시작해 주세요.</p>
-        </div>
-      ) : (
-        <div className="review-list">
-          {session.responses.map((response, index) => {
+      <div className="review-list">
+        {session.responses.length === 0 ? (
+          <article className="empty-state">
+            <h2>아직 답변이 없습니다.</h2>
+            <p>질문 화면으로 돌아가 첫 답변부터 시작해 주세요.</p>
+          </article>
+        ) : (
+          session.responses.map((response, index) => {
             const node = getNode(flow, response.nodeId);
             return (
-              <article key={response.nodeId} className="panel review-item">
-                <div className="review-main">
-                  <span className="step-index">{index + 1}</span>
-                  <div>
-                    <p className="overline">{node?.prompt}</p>
-                    <h3>{response.label}</h3>
-                  </div>
+              <article key={`${response.nodeId}-${index}`} className="review-row">
+                <span className="step-number">{index + 1}</span>
+                <div>
+                  <p>{node?.prompt ?? "질문 정보 없음"}</p>
+                  <strong>{response.label}</strong>
                 </div>
                 <button
-                  className="button secondary small"
+                  className="button ghost small"
                   onClick={() => {
                     rewindToNode(session.id, response.nodeId);
                     navigate(`/session/${session.id}`);
                   }}
+                  type="button"
                 >
-                  <IconLabel icon="edit">수정</IconLabel>
+                  수정
                 </button>
               </article>
             );
-          })}
-        </div>
-      )}
-
-      {session.profileSnapshot.birthTimeUnknown ? (
-        <div className="panel notice-panel">
-          <IconLabel icon="clock">
-            출생시간 미입력 상태라 결과는 세부 시기보다 큰 흐름 중심으로 생성됩니다.
-          </IconLabel>
-        </div>
-      ) : null}
-    </ScreenFrame>
+          })
+        )}
+      </div>
+    </PageFrame>
   );
 }
 
@@ -2583,13 +1261,15 @@ function LoadingPage() {
   const sessions = useAppStore((state) => state.sessions);
   const generateResult = useAppStore((state) => state.generateResult);
   const markLoading = useAppStore((state) => state.markLoading);
+  const [started, setStarted] = useState(false);
   const session = sessions.find((entry) => entry.id === sessionId);
 
   useEffect(() => {
-    if (!session) {
-      return;
+    if (!session || started) {
+      return undefined;
     }
 
+    setStarted(true);
     if (session.status !== "loading") {
       markLoading(session.id);
     }
@@ -2599,42 +1279,42 @@ function LoadingPage() {
       if (result) {
         navigate(resultPath(result.id), { replace: true });
       }
-    }, 120);
+    }, 950);
 
     return () => window.clearTimeout(timer);
-  }, [generateResult, markLoading, navigate, session]);
+  }, [generateResult, markLoading, navigate, session, started]);
 
   if (!session) {
     return <Navigate to="/topics" replace />;
   }
 
   return (
-    <ScreenFrame
-      eyebrow="결과 생성"
-      title="결과를 정리하고 있습니다."
-      subtitle="곧바로 리포트로 이동합니다."
-    >
-      <div className="loading-wrap">
+    <main className="loading-shell">
+      <section className="loading-card">
         <div className="loading-spinner" aria-hidden="true" />
-        <ul className="loading-steps">
+        <p className="eyebrow">결과 생성</p>
+        <h1>답변 흐름을 정리하고 있습니다.</h1>
+        <ul>
           <li>
-            <IconLabel icon="check">질문 태그 수집</IconLabel>
+            <UiIcon name="check" />
+            질문 태그 분석
           </li>
           <li>
-            <IconLabel icon="check">주제 기본 템플릿 병합</IconLabel>
+            <UiIcon name="check" />
+            사주 기준 보정
           </li>
           <li>
-            <IconLabel icon="check">신호 태그 기반 카드 조정</IconLabel>
+            <UiIcon name="check" />
+            행동 가이드 구성
           </li>
         </ul>
-      </div>
-    </ScreenFrame>
+      </section>
+    </main>
   );
 }
 
 function ResultPage() {
   const { resultId } = useParams();
-  const navigate = useNavigate();
   const results = useAppStore((state) => state.results);
   const sessions = useAppStore((state) => state.sessions);
   const saveSession = useAppStore((state) => state.saveSession);
@@ -2647,82 +1327,210 @@ function ResultPage() {
     return <Navigate to="/archive" replace />;
   }
 
+  return (
+    <ResultView
+      result={result}
+      session={session}
+      copied={copied}
+      onSave={() => saveSession(session.id)}
+      onShare={async () => {
+        const share = createShare(session.id);
+        if (!share) {
+          return;
+        }
+        const url = absoluteShareUrl(share.urlPath);
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(url).catch(() => undefined);
+        }
+        setCopied(url);
+      }}
+    />
+  );
+}
+
+function ResultView({
+  result,
+  session,
+  copied,
+  onSave,
+  onShare,
+  readOnly = false
+}: {
+  result: ConsultationResult;
+  session?: ConsultationSession;
+  copied?: string | null;
+  onSave?: () => void;
+  onShare?: () => void | Promise<void>;
+  readOnly?: boolean;
+}) {
   const topic = topicById(result.topicId);
-  const activeShare = session.shareToken
+  const activeShare = session?.shareToken
     ? useAppStore.getState().shares.find((share) => share.token === session.shareToken)
     : undefined;
+  const doLead = cardLead(cardByKey(result, "do"));
+  const dontLead = cardLead(cardByKey(result, "dont"));
+  const nextQuestions = result.recommendedQuestions.length
+    ? result.recommendedQuestions
+    : splitLines(cardByKey(result, "followUp")?.body ?? "");
 
   return (
-    <ScreenFrame
-      eyebrow={topic.label}
+    <PageFrame
+      className="result-page"
+      eyebrow={`${topic.label} 결과`}
       title={result.summary}
-      subtitle="고급 전략형 리포트를 기반으로 흐름·구조·실행 계획을 확인하세요."
+      description="먼저 핵심만 확인하고, 필요할 때 상세 카드를 펼쳐보세요."
       footer={
-        <div className="action-stack">
-          <button className="button primary" onClick={() => saveSession(session.id)}>
-            <IconLabel icon="save">{session.saved ? "결과 저장됨" : "결과 저장"}</IconLabel>
-          </button>
-          <button
-            className="button secondary"
-            onClick={async () => {
-              const share = createShare(session.id);
-              if (!share) {
-                return;
-              }
-              const url = absoluteShareUrl(share.urlPath);
-              if (navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(url).catch(() => undefined);
-              }
-              setCopied(url);
-            }}
-          >
-            <IconLabel icon="share">공유 링크 만들기</IconLabel>
-          </button>
-          <button className="button ghost" onClick={() => navigate("/topics")}>
-            <IconLabel icon="play">다른 주제 시작</IconLabel>
-          </button>
-        </div>
+        readOnly ? (
+          <Link className="button primary" to="/">
+            내 상담 시작
+          </Link>
+        ) : (
+          <div className="footer-actions three">
+            <button className="button primary" onClick={onSave} type="button">
+              <IconLabel icon="save">{session?.saved ? "저장됨" : "저장"}</IconLabel>
+            </button>
+            <button className="button secondary" onClick={() => void onShare?.()} type="button">
+              <IconLabel icon="share">공유</IconLabel>
+            </button>
+            <Link className="button ghost" to="/topics">
+              다른 주제
+            </Link>
+          </div>
+        )
       }
     >
-        <div className="panel result-summary">
-          <div className="badge-row">
-            <span className="badge">{topic.label}</span>
-            <span className="badge">{modeLabel(session.consultMode)}</span>
-            <span className="badge">{sourceLabel(result.generationSource)}</span>
-            {session.saved ? <span className="badge">저장됨</span> : null}
-          </div>
-          <div className="result-meta-strip">
-            <span className="result-meta-chip">
-              <UiIcon name="chart" />
-              응답 {session.responses.length}개
-            </span>
-            <span className="result-meta-chip">
-              <UiIcon name="clock" />
-              약 {modeEstimatedMinutes(topic, session.consultMode)}분 코스
-            </span>
-          </div>
-          <p className="muted">생성 시각 {formatDateTime(result.generatedAt)}</p>
-          {result.accuracyNote ? <p className="accuracy-note">{result.accuracyNote}</p> : null}
+      <section className="result-hero" style={topicStyle(topic)}>
+        <div className="badge-row">
+          <span>{topic.label}</span>
+          {session ? <span>{modeLabel(session.consultMode)}</span> : null}
+          <span>{sourceLabel(result.generationSource)}</span>
+          {session?.saved ? <span>저장됨</span> : null}
         </div>
+        <h2>{cardLead(cardByKey(result, "summary")) || result.summary}</h2>
+        <div className="result-meta">
+          <span>
+            <UiIcon name="clock" />
+            {formatDateTime(result.generatedAt)}
+          </span>
+          {session ? (
+            <span>
+              <UiIcon name="chart" />
+              답변 {session.responses.length}개
+            </span>
+          ) : null}
+        </div>
+        {result.accuracyNote ? <p className="accuracy-note">{result.accuracyNote}</p> : null}
+      </section>
 
       {copied ? (
-        <div className="panel highlight">
-          <p className="overline">복사된 공유 링크</p>
-          <p className="whitespace">{copied}</p>
-        </div>
+        <section className="copy-card">
+          <p className="eyebrow">공유 링크가 준비되었습니다.</p>
+          <p>{copied}</p>
+        </section>
       ) : null}
 
-      {activeShare && !isShareExpired(activeShare) ? (
-        <div className="panel soft">
-          <p className="overline">활성 링크</p>
-          <p>{absoluteShareUrl(activeShare.urlPath)}</p>
-          <small>만료일 {formatDate(activeShare.expiresAt)}</small>
-        </div>
-      ) : null}
+      {activeShare && !isShareExpired(activeShare) ? <ShareInfo share={activeShare} /> : null}
 
-      <PremiumResultReport result={result} session={session} />
-      <ResultSelectionTrail session={session} />
-    </ScreenFrame>
+      <section className="action-summary">
+        <article>
+          <p className="eyebrow">지금 할 일</p>
+          <h3>{doLead}</h3>
+        </article>
+        <article>
+          <p className="eyebrow">피할 패턴</p>
+          <h3>{dontLead}</h3>
+        </article>
+        <article>
+          <p className="eyebrow">이어 볼 질문</p>
+          <ul>
+            {nextQuestions.slice(0, 3).map((question) => (
+              <li key={question}>{question}</li>
+            ))}
+          </ul>
+        </article>
+      </section>
+
+      <ResultCardList result={result} />
+      {session ? <ResponseTrail session={session} /> : null}
+    </PageFrame>
+  );
+}
+
+function ShareInfo({ share }: { share: ShareRecord }) {
+  return (
+    <section className="copy-card">
+      <p className="eyebrow">활성 공유 링크</p>
+      <p>{absoluteShareUrl(share.urlPath)}</p>
+      <small>만료일 {formatDate(share.expiresAt)}</small>
+    </section>
+  );
+}
+
+function ResultCardList({ result }: { result: ConsultationResult }) {
+  return (
+    <section className="section-stack">
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">상세 리포트</p>
+          <h2>필요한 카드만 펼쳐보세요.</h2>
+        </div>
+      </div>
+      <div className="result-card-list">
+        {result.cards.map((card, index) => (
+          <details key={card.key} className="result-detail-card" open={index < 2}>
+            <summary>
+              <span className="step-number">{index + 1}</span>
+              <span>
+                <strong>{card.title}</strong>
+                <small>{RESULT_CARD_DESCRIPTIONS[card.key]}</small>
+              </span>
+              <UiIcon name="arrowRight" />
+            </summary>
+            <div className="detail-sections">
+              {parseCardSections(card).map((section) => (
+                <article key={`${card.key}-${section.title}`}>
+                  <h3>{section.title}</h3>
+                  <p>{section.body}</p>
+                </article>
+              ))}
+            </div>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ResponseTrail({ session }: { session: ConsultationSession }) {
+  if (session.responses.length === 0) {
+    return null;
+  }
+
+  const flow = FLOW_MAP[session.topicId];
+
+  return (
+    <section className="section-stack">
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">답변 흐름</p>
+          <h2>결과에 반영된 선택</h2>
+        </div>
+      </div>
+      <div className="response-trail">
+        {session.responses.map((response, index) => {
+          const node = getNode(flow, response.nodeId);
+          return (
+            <article key={`${response.nodeId}-${index}`}>
+              <span className="step-number">{index + 1}</span>
+              <div>
+                <p>{node?.prompt ?? "질문 정보 없음"}</p>
+                <strong>{response.label}</strong>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -2742,47 +1550,36 @@ function ArchivePage() {
   );
 
   return (
-    <ScreenFrame
+    <PageFrame
       eyebrow="보관함"
-      title="저장한 결과 모음"
-      subtitle="최근 결과부터 확인할 수 있습니다."
+      title="저장한 결과를 다시 확인하세요."
+      description="최근 저장 결과부터 정리했습니다."
       footer={
-        <div className="action-stack">
-          <Link className="button primary" to="/topics">
-            <IconLabel icon="play">새 상담 시작</IconLabel>
-          </Link>
-        </div>
+        <Link className="button primary" to="/topics">
+          새 상담 시작
+        </Link>
       }
     >
       {savedEntries.length === 0 ? (
-        <div className="panel empty-state">
-          <h3>아직 저장한 결과가 없습니다.</h3>
-          <p>결과 화면에서 저장 버튼을 누르면 이곳에 보관됩니다.</p>
-        </div>
+        <article className="empty-state">
+          <h2>아직 저장한 결과가 없습니다.</h2>
+          <p>결과 화면에서 저장하면 이곳에서 다시 볼 수 있습니다.</p>
+        </article>
       ) : (
         <div className="archive-list">
-          {savedEntries.map((entry) => (
-            <Link key={entry.result.id} className="panel result-link" to={resultPath(entry.result.id)}>
-              <div className="archive-head">
-                <p className="overline">{topicById(entry.result.topicId).label}</p>
-                <UiIcon name="arrowRight" />
+          {savedEntries.map(({ result, session }) => (
+            <Link key={result.id} className="archive-card" to={resultPath(result.id)}>
+              <div>
+                <p className="eyebrow">{topicById(result.topicId).label}</p>
+                <h2>{result.summary}</h2>
+                <p>{formatDateTime(result.generatedAt)} · {session ? modeLabel(session.consultMode) : "상담 결과"}</p>
               </div>
-              <h3>{entry.result.summary}</h3>
-              <div className="archive-meta-row">
-                <span className="archive-meta-chip">
-                  <UiIcon name="clock" />
-                  {formatDateTime(entry.result.generatedAt)}
-                </span>
-                <span className="archive-meta-chip">
-                  <UiIcon name="chart" />
-                  {entry.session ? modeLabel(entry.session.consultMode) : "모드 정보 없음"}
-                </span>
-              </div>
+              <UiIcon name="arrowRight" />
             </Link>
           ))}
         </div>
       )}
-    </ScreenFrame>
+    </PageFrame>
   );
 }
 
@@ -2797,38 +1594,25 @@ function SharedPage() {
 
   if (!share || !result || isShareExpired(share)) {
     return (
-      <ScreenFrame
+      <PageFrame
         eyebrow="공유 결과"
         title="링크가 만료되었거나 비활성화되었습니다."
-        subtitle="유효한 링크가 아니면 결과를 노출하지 않도록 안전하게 차단합니다."
+        description="유효한 링크가 아니면 결과를 노출하지 않습니다."
         footer={
           <Link className="button primary" to="/">
-            <IconLabel icon="play">홈으로 이동</IconLabel>
+            홈으로 이동
           </Link>
         }
       >
-        <div className="panel warning-panel">
-          <IconLabel icon="warning">공유 링크 상태를 확인해 주세요.</IconLabel>
-        </div>
-      </ScreenFrame>
+        <article className="empty-state warning">
+          <UiIcon name="warning" />
+          <h2>공유 링크 상태를 확인해 주세요.</h2>
+        </article>
+      </PageFrame>
     );
   }
 
-  return (
-    <ScreenFrame
-      eyebrow="공유 결과"
-      title={result.summary}
-      subtitle={`만료일 ${formatDate(share.expiresAt)}까지 확인할 수 있습니다.`}
-      footer={
-        <Link className="button primary" to="/">
-          <IconLabel icon="play">내 상담 시작</IconLabel>
-        </Link>
-      }
-    >
-      <PremiumResultReport result={result} session={session} />
-      <ResultSelectionTrail session={session} />
-    </ScreenFrame>
-  );
+  return <ResultView result={result} session={session} readOnly />;
 }
 
 function SettingsPage() {
@@ -2847,7 +1631,6 @@ function SettingsPage() {
   const disableShare = useAppStore((state) => state.disableShare);
   const deleteAllData = useAppStore((state) => state.deleteAllData);
   const [email, setEmail] = useState("");
-
   const cloudStateLabel =
     cloudSyncStatus === "ready"
       ? "동기화 준비됨"
@@ -2855,144 +1638,128 @@ function SettingsPage() {
         ? "동기화 중"
         : cloudSyncStatus === "error"
           ? "동기화 오류"
-          : "설정되지 않음";
-  const canUpgradeLogin = !cloudUserId || cloudAuthProvider !== "kakao";
+          : "로컬 전용";
   const cloudAccountText = cloudUserId
-    ? cloudAuthProvider === "anonymous"
-      ? "로그인 사용자 익명 계정 (카카오 로그인 권장)"
-      : `로그인 사용자 ${cloudAuthLabel(cloudAuthProvider)}${cloudUserEmail ? ` · ${cloudUserEmail}` : ""}`
+    ? `${cloudAuthLabel(cloudAuthProvider)} 계정${cloudUserEmail ? ` · ${cloudUserEmail}` : ""}`
     : "로그인 전 상태입니다.";
 
   return (
-    <ScreenFrame
+    <PageFrame
       eyebrow="설정"
       title="계정과 데이터를 관리하세요."
-      subtitle="로그인, 동기화, 공유 링크를 한곳에서 관리합니다."
+      description="동기화, 공유 링크, 로컬 데이터 삭제를 한곳에서 처리합니다."
     >
-      <div className="info-grid settings-grid">
-        <div className="panel soft">
-          <p className="overline">Supabase</p>
-          <h3>
-            <IconLabel icon="cloud">
-              {isSupabaseConfigured ? cloudStateLabel : "환경 변수 미설정"}
-            </IconLabel>
-          </h3>
+      <section className="settings-grid">
+        <article className="setting-card">
+          <UiIcon name="cloud" />
+          <p className="eyebrow">Supabase</p>
+          <h2>{isSupabaseConfigured ? cloudStateLabel : "환경 변수 미설정"}</h2>
           <p>{cloudAccountText}</p>
           {isSupabaseConfigured ? (
-            <div className="action-stack">
-              <button className="button secondary small" onClick={() => void syncCloudState()}>
-                <IconLabel icon="save">지금 동기화</IconLabel>
+            <div className="inline-actions">
+              <button className="button secondary small" onClick={() => void syncCloudState()} type="button">
+                지금 동기화
               </button>
               {cloudUserId ? (
-                <button className="button ghost small" onClick={() => void signOutCloud()}>
-                  <IconLabel icon="back">로그아웃</IconLabel>
+                <button className="button ghost small" onClick={() => void signOutCloud()} type="button">
+                  로그아웃
                 </button>
               ) : null}
             </div>
           ) : null}
-        </div>
-        <div className="panel soft">
-          <p className="overline">네트워크</p>
-          <h3>
-            <IconLabel icon="network">{networkStatus === "online" ? "온라인" : "오프라인"}</IconLabel>
-          </h3>
-          <p>오프라인 상태에서도 로컬 데이터는 유지되고, 온라인 복구 시 자동 동기화됩니다.</p>
-        </div>
-      </div>
+        </article>
+        <article className="setting-card">
+          <UiIcon name="network" />
+          <p className="eyebrow">네트워크</p>
+          <h2>{networkStatus === "online" ? "온라인" : "오프라인"}</h2>
+          <p>오프라인에서도 로컬 상담은 계속 진행됩니다.</p>
+        </article>
+      </section>
 
-      {isSupabaseConfigured && canUpgradeLogin ? (
-        <div className="panel">
-          <p className="overline">로그인 전환</p>
-          <div className="action-stack">
-            <button className="button kakao" onClick={() => void signInKakao()}>
-              <IconLabel icon="link">카카오 로그인</IconLabel>
-            </button>
-          </div>
-          <p className="muted">또는 이메일 로그인 링크</p>
-          <div className="field">
-            <span>로그인 이메일</span>
+      {isSupabaseConfigured && (!cloudUserId || cloudAuthProvider !== "kakao") ? (
+        <section className="form-card">
+          <h2>로그인 전환</h2>
+          <button className="button kakao" onClick={() => void signInKakao()} type="button">
+            카카오로 연결
+          </button>
+          <label className="field">
+            <span>이메일 로그인 링크</span>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="name@example.com"
               type="email"
             />
-          </div>
-          <div className="action-stack">
-            <button
-              className="button secondary small"
-              onClick={async () => {
-                if (!email.trim()) {
-                  return;
-                }
-                const ok = await signInEmail(email.trim());
-                if (ok) {
-                  setEmail("");
-                }
-              }}
-            >
-              <IconLabel icon="link">로그인 링크 전송</IconLabel>
-            </button>
-          </div>
-        </div>
+          </label>
+          <button
+            className="button secondary"
+            onClick={async () => {
+              if (!email.trim()) {
+                return;
+              }
+              const ok = await signInEmail(email.trim());
+              if (ok) {
+                setEmail("");
+              }
+            }}
+            type="button"
+          >
+            로그인 링크 전송
+          </button>
+        </section>
       ) : null}
 
-      <div className="panel">
-        <p className="overline">저장 데이터 현황</p>
-        <div className="settings-kpi-grid">
-          <article className="settings-kpi-item">
-            <span className="settings-kpi-icon">
-              <UiIcon name="chart" />
-            </span>
-            <strong>{sessions.length}</strong>
-            <span>세션</span>
-          </article>
-          <article className="settings-kpi-item">
-            <span className="settings-kpi-icon">
-              <UiIcon name="spark" />
-            </span>
-            <strong>{results.length}</strong>
-            <span>결과</span>
-          </article>
-          <article className="settings-kpi-item">
-            <span className="settings-kpi-icon">
-              <UiIcon name="share" />
-            </span>
-            <strong>{shares.length}</strong>
-            <span>공유 링크</span>
-          </article>
-        </div>
-      </div>
+      <section className="data-grid">
+        <article>
+          <strong>{sessions.length}</strong>
+          <span>세션</span>
+        </article>
+        <article>
+          <strong>{results.length}</strong>
+          <span>결과</span>
+        </article>
+        <article>
+          <strong>{shares.length}</strong>
+          <span>공유 링크</span>
+        </article>
+      </section>
 
-      {shares.length > 0 ? (
-        <div className="share-list">
-          {shares.map((share) => (
-            <article key={share.token} className="panel share-item">
-              <div>
-                <p className="overline">공유 링크</p>
-                <h3>{absoluteShareUrl(share.urlPath)}</h3>
-                <p>
-                  상태 {share.status} · 만료 {formatDate(share.expiresAt)}
-                </p>
-              </div>
-              {share.status === "active" ? (
-                <button className="button secondary small" onClick={() => disableShare(share.token)}>
-                  <IconLabel icon="link">비활성화</IconLabel>
-                </button>
-              ) : null}
-            </article>
-          ))}
+      <section className="section-stack">
+        <div className="section-head">
+          <div>
+            <p className="eyebrow">공유 링크</p>
+            <h2>활성 링크 관리</h2>
+          </div>
         </div>
-      ) : (
-        <div className="panel soft">
-          <p className="overline">공유 링크</p>
-          <p>아직 생성된 공유 링크가 없습니다.</p>
-        </div>
-      )}
+        {shares.length === 0 ? (
+          <article className="empty-state">
+            <p>생성된 공유 링크가 없습니다.</p>
+          </article>
+        ) : (
+          <div className="share-list">
+            {shares.map((share) => (
+              <article key={share.token} className="share-row">
+                <div>
+                  <strong>{absoluteShareUrl(share.urlPath)}</strong>
+                  <p>상태 {share.status} · 만료 {formatDate(share.expiresAt)}</p>
+                </div>
+                {share.status === "active" ? (
+                  <button className="button ghost small" onClick={() => disableShare(share.token)} type="button">
+                    비활성화
+                  </button>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
-      <div className="panel warning-panel">
-        <p className="overline">데이터 삭제</p>
-        <p>프로필, 세션, 결과, 공유 링크를 모두 삭제합니다.</p>
+      <section className="danger-zone">
+        <div>
+          <p className="eyebrow">데이터 삭제</p>
+          <h2>로컬 데이터를 모두 삭제합니다.</h2>
+          <p>프로필, 세션, 결과, 공유 링크가 현재 기기에서 삭제됩니다.</p>
+        </div>
         <button
           className="button danger"
           onClick={() => {
@@ -3000,11 +1767,12 @@ function SettingsPage() {
               deleteAllData();
             }
           }}
+          type="button"
         >
-          <IconLabel icon="trash">로컬 데이터 전체 삭제</IconLabel>
+          <IconLabel icon="trash">전체 삭제</IconLabel>
         </button>
-      </div>
-    </ScreenFrame>
+      </section>
+    </PageFrame>
   );
 }
 
@@ -3019,79 +1787,70 @@ function OpsPage() {
     .slice(0, 8);
 
   return (
-    <ScreenFrame
-      eyebrow="운영 구조"
-      title="운영 지표와 카탈로그 규모를 확인합니다."
-      subtitle="현재 화면은 로컬+Supabase 기반 프로토타입이며, 동일한 구조로 운영 확장할 수 있습니다."
+    <PageFrame
+      eyebrow="운영 지표"
+      title="질문과 결과 구조를 점검합니다."
+      description="사용자 화면에서는 숨겨도 되는 내부 확인용 페이지입니다."
     >
-      <div className="panel">
-        <p className="overline">요약 지표</p>
-        <div className="metric-row">
-          <span>
-            <IconLabel icon="chart">주제 {TOPICS.length}개</IconLabel>
-          </span>
-          <span>
-            <IconLabel icon="chart">질문 노드 {totalNodes}개</IconLabel>
-          </span>
-          <span>
-            <IconLabel icon="chart">신호 템플릿 {SIGNAL_TEMPLATES.length}개</IconLabel>
-          </span>
-        </div>
-      </div>
-
-      <div className="panel soft">
-        <p className="overline">주제별 통계</p>
-        <div className="ops-table">
-          {topicMetrics.map((metric) => (
-            <div key={metric.topicId} className="ops-row">
-              <strong>{metric.label}</strong>
-              <span>진입 {metric.entries}</span>
-              <span>완주율 {metric.completionRate}%</span>
-              <span>저장률 {metric.saveRate}%</span>
+      <section className="data-grid">
+        <article>
+          <strong>{TOPICS.length}</strong>
+          <span>주제</span>
+        </article>
+        <article>
+          <strong>{totalNodes}</strong>
+          <span>질문 노드</span>
+        </article>
+        <article>
+          <strong>{SIGNAL_TEMPLATES.length}</strong>
+          <span>신호 템플릿</span>
+        </article>
+      </section>
+      <section className="ops-table">
+        <h2>주제별 통계</h2>
+        {topicMetrics.map((metric) => (
+          <div key={metric.topicId}>
+            <strong>{metric.label}</strong>
+            <span>진입 {metric.entries}</span>
+            <span>완주율 {metric.completionRate}%</span>
+            <span>저장률 {metric.saveRate}%</span>
+          </div>
+        ))}
+      </section>
+      <section className="ops-table">
+        <h2>질문 이탈 후보</h2>
+        {dropoutCandidates.length === 0 ? (
+          <p>이탈 후보 데이터가 아직 없습니다.</p>
+        ) : (
+          dropoutCandidates.map((metric) => (
+            <div key={metric.nodeId}>
+              <strong>{metric.prompt}</strong>
+              <span>{topicById(metric.topicId as TopicId).label}</span>
+              <span>이탈률 {metric.dropoutRate}%</span>
             </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="panel">
-        <p className="overline">질문 이탈 후보</p>
-        <div className="ops-table">
-          {dropoutCandidates.length === 0 ? (
-            <div className="ops-row">
-              <span>이탈 후보 데이터가 아직 없습니다.</span>
-            </div>
-          ) : (
-            dropoutCandidates.map((metric) => (
-              <div key={metric.nodeId} className="ops-row column">
-                <strong>{metric.prompt}</strong>
-                <span>
-                  {topicById(metric.topicId as TopicId).label} · 응답 {metric.answered} · 이탈 후보{" "}
-                  {metric.pendingDropouts} · 이탈률 {metric.dropoutRate}%
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </ScreenFrame>
+          ))
+        )}
+      </section>
+    </PageFrame>
   );
 }
 
 function NotFoundPage() {
   return (
-    <ScreenFrame
+    <PageFrame
       eyebrow="404"
       title="요청한 화면을 찾을 수 없습니다."
-      subtitle="경로가 잘못되었거나 만료된 공유 링크일 수 있습니다."
+      description="경로가 잘못되었거나 만료된 링크일 수 있습니다."
       footer={
         <Link className="button primary" to="/">
-          <IconLabel icon="play">홈으로 이동</IconLabel>
+          홈으로 이동
         </Link>
       }
     >
-      <div className="panel warning-panel">
-        <IconLabel icon="warning">링크 상태를 확인한 뒤 다시 시도해 주세요.</IconLabel>
-      </div>
-    </ScreenFrame>
+      <article className="empty-state warning">
+        <UiIcon name="warning" />
+        <h2>링크 상태를 확인해 주세요.</h2>
+      </article>
+    </PageFrame>
   );
 }
