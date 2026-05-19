@@ -18,7 +18,7 @@ import { getNode, getProgressPercent } from "../lib/engine";
 import { computeQuestionMetrics, computeTopicMetrics } from "../lib/ops";
 import { isShareExpired } from "../lib/share";
 import { isSupabaseConfigured, type CloudAuthProvider } from "../lib/supabase";
-import { EMPTY_PROFILE, useAppStore } from "../store/useAppStore";
+import { useAppStore } from "../store/useAppStore";
 import type {
   ConsultationMode,
   ConsultationResult,
@@ -89,7 +89,7 @@ const TOPIC_GROUPS: TopicGroup[] = [
 
 const FEATURED_TOPIC_IDS: TopicId[] = ["romance", "career", "mind", "yearly"];
 const BRAND_NAME = "하루결";
-const BRAND_TAGLINE = "복잡한 마음을 한 줄로";
+const BRAND_TAGLINE = "사주로 보는 오늘의 한 줄";
 
 const ENTRY_POINTS: Array<{
   id: string;
@@ -100,19 +100,19 @@ const ENTRY_POINTS: Array<{
   {
     id: "love",
     label: "사랑",
-    line: "상대 마음과 관계 흐름",
+    line: "연애와 관계의 사주 흐름",
     topicId: "romance"
   },
   {
     id: "work",
     label: "일",
-    line: "일, 돈, 선택의 기준",
+    line: "일과 돈의 움직임",
     topicId: "career"
   },
   {
     id: "mind",
     label: "마음",
-    line: "내 마음과 올해 방향",
+    line: "올해 운과 마음의 방향",
     topicId: "mind"
   }
 ];
@@ -232,7 +232,11 @@ function formatProfileSummary(profile: UserProfile) {
 
   return parts.length > 0
     ? parts.join(" · ")
-    : "프로필 없이 빠르게 시작합니다. 생년월일을 넣으면 결과가 더 구체적입니다.";
+    : "사주정보가 아직 없습니다. 생년월일을 먼저 입력해야 결과를 만들 수 있습니다.";
+}
+
+function hasSajuProfile(profile: UserProfile) {
+  return Boolean(profile.birthDate.trim() && (profile.birthTimeUnknown || profile.birthTime.trim()));
 }
 
 function resultPath(resultId: string) {
@@ -639,22 +643,32 @@ export function App() {
 
 function HomePage() {
   const navigate = useNavigate();
+  const profile = useAppStore((state) => state.profile);
   const sessions = useAppStore((state) => state.sessions);
   const results = useAppStore((state) => state.results);
   const activeSession = useMemo(() => latestOpenSession(sessions), [sessions]);
   const savedEntry = useMemo(() => latestSavedResult(results, sessions), [results, sessions]);
+  const canStart = hasSajuProfile(profile);
+  const start = () => {
+    if (canStart) {
+      navigate("/topics");
+      return;
+    }
+    navigate("/profile", { state: { next: "/topics" } });
+  };
 
   return (
     <PageFrame className="home-page minimal-home">
       <section className="brand-hero">
         <span className="brand-word">{BRAND_NAME}</span>
-        <h1>복잡한 말 말고, 지금 필요한 한 줄.</h1>
-        <p>사랑, 일, 마음 중 하나만 고르면 바로 시작합니다.</p>
-        <button className="hero-start" onClick={() => navigate("/topics")} type="button">
-          <span>시작하기</span>
+        <h1>내 사주로 보는 지금의 한 줄.</h1>
+        <p>생년월일을 먼저 넣고, 사랑·일·마음 중 하나만 고르면 됩니다.</p>
+        <button className="hero-start" onClick={start} type="button">
+          <span>{canStart ? "시작하기" : "사주정보 입력"}</span>
           <UiIcon name="arrowRight" />
         </button>
         <div className="hero-tags" aria-label="상담 입구">
+          <span>생년월일 필수</span>
           <span>사랑</span>
           <span>일</span>
           <span>마음</span>
@@ -734,15 +748,27 @@ function NoticePage() {
 
 function ProfilePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const savedProfile = useAppStore((state) => state.profile);
   const updateProfile = useAppStore((state) => state.updateProfile);
   const [form, setForm] = useState<UserProfile>(savedProfile);
+  const [formError, setFormError] = useState<string | null>(null);
+  const nextPath = (location.state as { next?: string } | null)?.next ?? "/topics";
 
   useEffect(() => {
     setForm(savedProfile);
   }, [savedProfile]);
 
   const submit = () => {
+    if (!form.birthDate.trim()) {
+      setFormError("생년월일은 사주 계산의 기준이라 반드시 필요합니다.");
+      return;
+    }
+    if (!form.birthTimeUnknown && !form.birthTime.trim()) {
+      setFormError("출생시간을 입력하거나 '출생시간을 몰라요'를 선택해 주세요.");
+      return;
+    }
+
     const normalized: UserProfile = {
       ...form,
       nickname: form.nickname.trim(),
@@ -750,29 +776,22 @@ function ProfilePage() {
       birthTimeUnknown: !form.birthDate || form.birthTimeUnknown || !form.birthTime
     };
     updateProfile(normalized);
-    navigate("/topics");
+    navigate(nextPath);
   };
 
   return (
     <PageFrame
-      eyebrow="프로필"
-      title="필요한 만큼만 입력하세요."
-      description="건너뛰어도 상담은 가능하지만, 생년월일과 출생시간이 있으면 결과가 더 구체적입니다."
+      eyebrow="사주정보"
+      title="먼저 본인의 사주정보가 필요합니다."
+      description="생년월일은 필수입니다. 출생시간을 모르면 모름 상태로 진행할 수 있지만 결과는 큰 흐름 중심으로 나옵니다."
       footer={
         <div className="footer-actions">
           <button className="button primary" onClick={submit} type="button">
-            <IconLabel icon="save">저장하고 계속</IconLabel>
+            <IconLabel icon="save">사주정보 저장</IconLabel>
           </button>
-          <button
-            className="button ghost"
-            onClick={() => {
-              updateProfile({ ...EMPTY_PROFILE });
-              navigate("/topics");
-            }}
-            type="button"
-          >
-            입력 없이 시작
-          </button>
+          <Link className="button ghost" to="/">
+            홈으로
+          </Link>
         </div>
       }
     >
@@ -786,6 +805,12 @@ function ProfilePage() {
           <p>{formatProfileSummary(form)}</p>
         </div>
       </section>
+
+      {formError ? (
+        <div className="form-error">
+          <IconLabel icon="warning">{formError}</IconLabel>
+        </div>
+      ) : null}
 
       <div className="form-grid">
         <label className="field">
@@ -860,12 +885,18 @@ function ProfilePage() {
 
 function TopicPage() {
   const navigate = useNavigate();
+  const profile = useAppStore((state) => state.profile);
   const setConsultMode = useAppStore((state) => state.setConsultMode);
   const sessions = useAppStore((state) => state.sessions);
   const startSession = useAppStore((state) => state.startSession);
   const openSessions = useMemo(() => latestOpenSession(sessions), [sessions]);
 
   const launch = (topicId: TopicId, forceRestart = false) => {
+    if (!hasSajuProfile(profile)) {
+      navigate("/profile", { state: { next: "/topics" } });
+      return;
+    }
+
     try {
       setConsultMode("quick");
       const session = startSession(topicId, forceRestart, "quick");
@@ -877,12 +908,40 @@ function TopicPage() {
     }
   };
 
+  if (!hasSajuProfile(profile)) {
+    return (
+      <PageFrame
+        className="start-page"
+        eyebrow={BRAND_NAME}
+        title="사주정보부터 입력해 주세요."
+        description="하루결은 입력한 생년월일과 출생시간을 기준으로 결과를 만듭니다."
+        footer={
+          <button
+            className="button primary"
+            onClick={() => navigate("/profile", { state: { next: "/topics" } })}
+            type="button"
+          >
+            사주정보 입력
+          </button>
+        }
+      >
+        <section className="saju-required-card">
+          <UiIcon name="profile" />
+          <div>
+            <strong>필수 정보</strong>
+            <p>생년월일, 양력/음력, 출생시간 또는 출생시간 모름</p>
+          </div>
+        </section>
+      </PageFrame>
+    );
+  }
+
   return (
     <PageFrame
       className="start-page"
       eyebrow={BRAND_NAME}
-      title="하나만 고르면 됩니다."
-      description="세부 주제와 깊이는 질문 안에서 자연스럽게 맞춥니다."
+      title="이제 하나만 고르면 됩니다."
+      description="입력한 사주정보를 기준으로 사랑, 일, 마음 흐름을 정리합니다."
       footer={
         openSessions ? (
           <button className="button ghost" onClick={() => navigate(sessionPath(openSessions))} type="button">
@@ -911,7 +970,7 @@ function TopicPage() {
         })}
       </section>
 
-      <p className="start-note">보통 1분 안에 결과가 나옵니다. 생년월일은 나중에 넣어도 됩니다.</p>
+      <p className="start-note">{formatProfileSummary(profile)} 기준으로 봅니다.</p>
     </PageFrame>
   );
 }

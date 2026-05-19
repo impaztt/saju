@@ -793,6 +793,45 @@ p {
   gap: 12px;
 }
 
+.form-error,
+.saju-required-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #fedf89;
+  border-radius: var(--radius);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.saju-required-card {
+  align-items: flex-start;
+  border-color: #cbe8d8;
+  background: #f4fbf7;
+  color: var(--ink);
+}
+
+.saju-required-card .ui-icon {
+  color: var(--primary-strong);
+}
+
+.saju-required-card strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.saju-required-card p {
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .field {
   display: flex;
   flex-direction: column;
